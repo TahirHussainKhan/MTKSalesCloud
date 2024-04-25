@@ -1,0 +1,2689 @@
+
+
+
+MY WORK
+
+public class ApiLogCreation {
+    
+    public static void creation(string function,string objname,string recordid,string recordname,string apistatus,datetime dt,string apiresponse)
+    {
+        try {
+   				
+            API_Log__c api_log=new API_Log__c(Name=function,Object_Name__c= objname ,Record_Id__c= recordid,Record_Name__c = recordname,Api_Status__c= apistatus,DateTime__c=dt,API_Response__c=apiresponse);
+       	
+            insert api_log;
+            
+        }
+        
+        catch(Exception e) 
+        {
+    		System.debug('An unexpected error has occurred: ' + e.getMessage());
+		}
+    }
+
+}
+
+public class AttachmentCreationfromProduct {
+    @future (callout=true)
+    public Static void attachmentCreation(id productid)
+    {
+        try
+       {
+         string Api_Type;
+         string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+         Product2 prod=[select name,productcode,Attachment_Category__c,API_Success__c from product2 where id =:productid];
+         Attachment_Category__c attachmentCategory=[Select Attachment_Category_Code__c from Attachment_Category__c where id =: prod.Attachment_Category__c];
+         JSONGenerator jsonGen = JSON.createGenerator(true);
+         jsonGen.writeStartObject();
+           
+         jsonGen.writeStringField('customerType','CTP-002');
+          
+         if(prod.Name==null)
+         {
+             prod.API_Response__c='Name is missing';
+             update prod;
+         }
+         else
+         {
+              jsonGen.writeStringField('name',prod.Name);
+           
+         }
+         
+      
+         if(prod.Name==null)
+         {
+             prod.API_Response__c='Arabic name is missing';
+             update prod;
+         }
+         else
+         {
+              jsonGen.writeStringField('nameAr',prod.Name);
+             
+         }
+         
+         jsonGen.writeStringField('port','1');
+         
+      
+         if(String.isNotBlank(prod.ProductCode))
+         {
+             jsonGen.writeStringField('code',prod.ProductCode);
+             
+         }
+         
+         jsonGen.writeStringField('deviceTypeCode','PRO-TKU-031');
+           
+         if(attachmentCategory.Attachment_Category_Code__c==null)
+         {
+             prod.API_Response__c='Attachment category code is missing';
+             update prod;
+         }
+         else
+         {
+         jsonGen.writeStringField('categoryCode',attachmentCategory.Attachment_Category_Code__c);
+             
+         }
+           
+         jsonGen.writeEndObject();
+         String jsonData = jsonGen.getAsString();
+         HttpRequest req = new HttpRequest();
+         req.setMethod('POST');
+         req.setHeader('Authorization', mctk_API);
+         req.setHeader('Content-type', 'application/json');
+         req.setEndpoint('http://avl.com.sa:8799/salesforce/Attachment');
+         req.setBody(jsonData); 
+         Http http = new Http();
+         HTTPResponse response = http.send(req);
+         JSONParser parser = JSON.createParser(response.getBody());
+           
+           
+         string pcode;
+         String data;
+         string verror;
+         if (response.getStatus() =='OK')
+         {
+            while (parser.nextToken() != null) 
+            {
+                if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'code'))
+                {
+                 parser.nextToken();
+                 pcode = parser.getText();
+                }
+                if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'message')) 
+                {
+                 parser.nextToken();
+                 data = parser.getText();
+                }
+             }
+               prod.API_Success__c=True;
+               prod.API_Response__c=data;
+               prod.ProductCode=pcode;
+               update prod; 
+         }
+           
+         else
+          {
+               string error=String.valueOf(response.getBody());     
+               verror= error.substringAfter('"errors":');
+               prod.API_Success__c=false;
+               prod.API_Response__c=verror;
+               update prod; 
+           }
+         
+         if(String.isNotBlank(prod.ProductCode))
+         {
+             Api_Type='Update';
+       	     ApiLogCreation.creation(Api_Type,'Attachment', productid , prod.Name, response.getStatus(),Datetime.now(),verror);
+             
+         }
+         else
+         {
+             Api_Type='Create';
+             ApiLogCreation.creation(Api_Type,'Attachment', productid , prod.Name, response.getStatus(),Datetime.now(),verror);
+         }
+       }
+        
+       catch(Exception e) 
+       {
+         	System.debug('An unexpected error has occurred: ' + e.getMessage());
+       }
+         
+    }
+    
+    
+}
+
+
+
+
+public class CustomerAPI {
+
+    @future (callout=true)
+    public Static void customerCreation(id accountid)
+    {
+        
+        try
+        {
+         
+         string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+         string mobileNumber='';
+         Account acct=[select Name,Account_Number__c,Account_Name_in_Arabic_as_per_CR__c,Finance_Contact__c,CR_Number__c from Account where id =:accountid];
+         Contact cont=[select Email,MobilePhone from Contact where id =:acct.Finance_Contact__c];
+         mobileNumber=cont.MobilePhone;
+         system.debug('mobile number '+mobileNumber);
+         JSONGenerator jsonGen = JSON.createGenerator(true);
+         jsonGen.writeStartObject();
+         jsonGen.writeStringField('name',acct.Name);
+         jsonGen.writeStringField('nameAr',acct.Account_Name_in_Arabic_as_per_CR__c);
+         jsonGen.writeStringField('accountNo',acct.Account_Number__c);
+         jsonGen.writeStringField('crNumber',acct.CR_Number__c);
+         jsonGen.writeStringField('email',cont.Email);
+         jsonGen.writeStringField('mobileNumber',mobileNumber.right(9));
+         jsonGen.writeEndObject();
+         String jsonData = jsonGen.getAsString();
+         HttpRequest req = new HttpRequest();
+         req.setMethod('POST');
+         req.setHeader('Authorization', mctk_API);
+         req.setHeader('Content-type', 'application/json');
+         req.setEndpoint('http://avl.com.sa:8799/salesforce/Customer/Master');
+         req.setBody(jsonData); 
+         Http http = new Http();
+         HTTPResponse response = http.send(req);
+         JSONParser parser = JSON.createParser(response.getBody());
+        
+            
+         string data;
+         string verror;
+           
+       
+         if (response.getStatus() =='OK')
+         {
+         	while (parser.nextToken() != null) 
+         	{
+            	if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) &&  (parser.getText() == 'message')) 
+            	{
+               		 parser.nextToken();
+                	 data = parser.getText();
+            	}
+            
+        	}
+             
+             acct.API_Response__c=data;
+             acct.API_Success__c=True;
+         	 update acct;   
+          }
+            
+         else
+         {
+               string error=String.valueOf(response.getBody());     
+               verror= error.substringAfter('"data":');
+               acct.API_Success__c=false;
+               acct.API_Response__c=verror;
+               update acct;   
+         }
+            
+         
+       
+         ApiLogCreation.creation('Create','Account', accountid , acct.Name, response.getStatus(),Datetime.now(),verror);
+       
+	    }
+         
+        catch(Exception e) 
+        {    
+         	System.debug('An unexpected error has occurred: ' + e.getMessage());
+    	}
+    }
+}
+
+
+
+
+public class DeviceCreationFromProduct {
+	
+    @future (callout=true)
+    public Static void deviceCreation(id productid)
+    {
+        try
+       {
+         string api_type;
+         string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+         Product2 prod=[select name,productcode,Description from product2 where id =:productid];
+         JSONGenerator jsonGen = JSON.createGenerator(true);
+         jsonGen.writeStartObject();
+           
+         if(String.isNotBlank(prod.Name))
+         {
+           jsonGen.writeStringField('name',prod.Name);
+         }
+         else
+         {
+             prod.API_Response__c='Name is missing';
+           
+         }
+
+         if(String.isNotBlank(prod.Name))
+         {
+          jsonGen.writeStringField('deviceType',prod.Name);
+         }
+         else
+         {
+             prod.API_Response__c='Device type is missing';
+         
+         }
+ 
+         if(String.isNotBlank(prod.Name))
+         {
+         jsonGen.writeStringField('vendor',prod.Name);
+         }
+         else
+         {
+             prod.API_Response__c='Vendor is missing';
+          
+         }
+         
+         if(String.isNotBlank(prod.Name))
+         {
+           jsonGen.writeStringField('command',prod.Name);
+         }
+         else
+         {
+             prod.API_Response__c='Command is missing';
+           
+         }
+        
+    
+         if(String.isNotBlank(prod.ProductCode))
+         {
+             jsonGen.writeStringField('code',prod.ProductCode);
+         }
+         else
+         {
+             jsonGen.writeStringField('code','0');
+         }
+         
+           
+         if(String.isNotBlank(prod.Description))
+         {
+          jsonGen.writeStringField('notes',prod.Description);
+         }
+         else
+         {
+             prod.API_Response__c='Description is missing';
+           
+         }
+         
+        
+         jsonGen.writeEndObject();
+         String jsonData = jsonGen.getAsString();
+         HttpRequest req = new HttpRequest();
+         req.setMethod('POST');
+         req.setHeader('Authorization', '60233b98-c324-41c4-925a-2223442e5a81');
+         req.setHeader('Content-type', 'application/json');
+         req.setEndpoint('http://avl.com.sa:8799/salesforce/DeviceType');
+         req.setBody(jsonData); 
+         Http http = new Http();
+         HTTPResponse response = http.send(req);
+         JSONParser parser = JSON.createParser(response.getBody());
+           
+           
+           
+         string pcode;
+         String data;
+         string verror;
+       
+         if (response.getStatus() =='OK')
+         {
+        
+             while (parser.nextToken() != null) 
+        	 {
+            	if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'code')) 
+            	{
+                parser.nextToken();
+                pcode = parser.getText();
+            	}
+                if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'message')) 
+             	{
+               		parser.nextToken();
+                	data = parser.getText();
+             	}
+         	 }
+       		   
+               prod.API_Success__c=True;
+               prod.API_Response__c=data;
+               prod.ProductCode=pcode;
+               update prod;   
+         }
+           
+         else
+         {
+               string error=String.valueOf(response.getBody());     
+               verror= error.substringAfter('"errors":');
+               prod.API_Success__c=false;
+               prod.API_Response__c=verror;
+               update prod; 
+          }
+           
+      
+         if(String.isNotBlank(prod.ProductCode))
+         {
+             Api_Type='Update';
+       	     ApiLogCreation.creation(Api_Type,'Device', productid , prod.Name, response.getStatus(),Datetime.now(),verror);
+             
+         }
+         else
+         {
+             Api_Type='Create';
+             ApiLogCreation.creation(Api_Type,'Device', productid , prod.Name, response.getStatus(),Datetime.now(),verror);
+         }
+           
+         }
+        
+        catch(Exception e) 
+        {
+         	System.debug('An unexpected error has occurred: ' + e.getMessage());
+    	}
+         
+    }
+    
+}
+
+
+
+public class GetAPIRecorsdsForReProcessing 
+{
+    public  void GetProducts()
+    {
+        List<Product2> prod=[select id,Product_Parent__c from product2 where API_Success__c =false and API_Response__c != null];
+      
+         id productid ;
+  
+        for (Product2 prodd: prod ) 
+        { 
+            if(prodd.Product_Parent__c == 'Attachment')
+            {
+				productid=(id)prodd.get('id');
+                AttachmentCreationfromProduct.attachmentCreation(productid);
+			}
+           
+            else if(prodd.Product_Parent__c == 'Device')
+            {
+
+                productid=(id)prodd.get('id');
+                DeviceCreationFromProduct.deviceCreation(productid);
+                
+			}
+    	
+		}
+        
+    }
+    
+    public  void GetAccounts()
+    {
+        id accountid;
+        List<Account> acct=[select id,Approval_Status__c  from Account where API_Success__c =false and API_Response__c != null];
+        
+        for(Account acc: acct)
+        {
+             if(acc.Approval_Status__c == 'Approved')
+            {
+				accountid=(id)acc.get('id');
+                CustomerAPI.customerCreation(accountid);
+			}
+           
+
+            
+        }
+    }
+
+}
+
+
+public class AttachmentDeviceDeletefromProduct {
+    @future(callout=true)
+    public static void attachmentDelete(string code)
+    {
+      try
+   	   {
+        string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+        string url='/Attachment/'+code;
+        HttpRequest req = new HttpRequest();
+        req.setMethod('DELETE');
+        req.setHeader('Authorization', mctk_API);
+        req.setHeader('Content-type', 'application/json');
+        req.setEndpoint('http://avl.com.sa:8799/salesforce'+url);
+        Http http = new Http();
+        HTTPResponse response = http.send(req); 
+        System.debug(response.getStatusCode());
+        System.debug(response.getStatus());  
+        ApiLogCreation.creation('Delete','Attachment', code , '', response.getStatus(),Datetime.now());
+      
+    }
+     catch(Exception e) {
+         	System.debug('An unexpected error has occurred: ' + e.getMessage());
+    	}
+    }
+    @future(callout=true)
+    public static void deviceDelete(string code)
+    {
+      try
+   	   {
+        string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+        string url='/DeviceType/'+code;
+        HttpRequest req = new HttpRequest();
+        req.setMethod('DELETE');
+        req.setHeader('Authorization', mctk_API);
+        req.setHeader('Content-type', 'application/json');
+        req.setEndpoint('http://avl.com.sa:8799/salesforce'+url);
+        Http http = new Http();
+        HTTPResponse response = http.send(req);
+        System.debug(response.getStatusCode());
+           
+         
+        // string pcode;
+        // String data;
+        // string verror;
+        ApiLogCreation.creation('Delete','Device', code , '', response.getStatus(),Datetime.now());
+           
+       }
+     
+       catch(Exception e) 
+        {
+         	System.debug('An unexpected error has occurred: ' + e.getMessage());
+    	}
+    }
+}
+
+
+
+
+
+
+global class APIFailureScheduleClass implements Schedulable 
+{
+     global void execute(SchedulableContext SC)
+     {
+      GetAPIRecorsdsForReProcessing GPFR =new GetAPIRecorsdsForReProcessing();
+         GPFR.GetProducts();
+         GPFR.GetAccounts();
+         GPFR.GetAPILogs();
+     }
+}
+
+
+
+
+
+
+global class GetAttachmentCategorySchedule implements Schedulable 
+{
+ global void execute(SchedulableContext SC)
+ {
+     GetAttachmentCategory GetCategory =new GetAttachmentCategory();
+     GetCategory.createAttachmentCategoryRecord();
+ }
+}
+
+
+
+
+public class UpdateValues {
+    
+     @future (callout=true)
+    public static void UpdatePicklistValues(String picklistApiName, String newValue)
+    {
+ 	try 
+    {
+    
+ 		MetadataService.MetadataPort service = new MetadataService.MetadataPort();
+ 		service.SessionHeader = new MetadataService.SessionHeader_element();
+ 		service.SessionHeader.sessionId = UserInfo.getSessionId();
+        
+        
+ 		MetadataService.CustomField customField = (MetadataService.CustomField)
+		service.readMetadata('CustomField', new String[]{picklistApiName}).getRecords()[0];
+        
+        
+ 	
+ 		Map<String, String> existingValues = new Map<String, String>();
+        
+        
+ 		for (MetadataService.CustomValue objCustomValue : customField.valueSet.valueSetDefinition.value)
+        {
+			 existingValues.put(objCustomValue.fullName, objCustomValue.label);
+ 		}
+        
+        
+ 		MetadataService.CustomValue objCustomValue = new MetadataService.CustomValue();
+ 		objCustomValue.fullName = newValue;
+ 		objCustomValue.label = newValue;
+ 		objCustomValue.default_x = false;
+ 		objCustomValue.isActive = true;
+        
+        
+ 		if (existingValues.get(newValue) == null) {
+ 		    customField.valueSet.valueSetDefinition.value.add(objCustomValue);
+ 		     List<MetadataService.SaveResult> lstResults = service.updateMetadata(new MetadataService.Metadata[]{customField});
+ 		     for (MetadataService.SaveResult objResult : lstResults) {
+ 		      if (objResult.success)
+              {
+ 			    System.debug('Successfully updated');
+ 		      } 
+              else 
+               {
+ 		         if (objResult.errors.size() > 0) 
+                 {
+ 		          System.debug('erorr : ' + objResult.errors[0].message);
+ 		         }
+ 		       }
+ 		    }
+ 		  }
+ 		} 
+        
+        catch (Exception e)
+        {
+ 		  System.debug( 'Error for Object '+ e);
+ 		}
+   }
+    
+
+    
+ 	
+    
+
+    
+}
+
+
+
+
+
+trigger AttachmentCatagory on Attachment_Category__c (after insert) 
+{
+    try 
+    {
+        for(Attachment_Category__c attachmentcategory:Trigger.New)
+        {
+            if(System.isFuture()==false)
+            {
+             
+       		  UpdateValues.UpdatePicklistValues('Product2.Attachment_Categories__c',attachmentcategory.Name);
+              
+            }
+        }
+        
+    }
+    catch(Exception e)
+    {
+         System.debug('An unexpected error has occurred: ' + e.getMessage());
+    }
+}
+
+
+
+
+
+
+public class GetServiceEnablement 
+{
+    public  void GetSalesServiceEnablements()
+    {
+        try
+        {
+            string Api_Type;
+         	string SECode;
+         	String SEName;
+         	string verror;
+            
+         	string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+         	List<SalesOrderServicesServiceEnablement__c> serviceenablements= New list<SalesOrderServicesServiceEnablement__c>();
+         	HttpRequest req = new HttpRequest();
+         	req.setMethod('GET');
+         	req.setHeader('Authorization', '60233b98-c324-41c4-925a-2223442e5a81');
+         	req.setHeader('Content-type', 'application/json');
+         	req.setEndpoint('http://avl.com.sa:8799/salesforce/Customer/SalesOrderServices');
+         	Http http = new Http();
+         	HTTPResponse response = http.send(req);
+
+         	ServiceEnablementJSON.parse(response.getBody());
+            
+            for(ServiceEnablementJSON.data data: ServiceEnablementJSON.parse(response.getBody()).data)
+         		{
+             		SalesOrderServicesServiceEnablement__c[] categoryExist=[Select Service_Code__c from SalesOrderServicesServiceEnablement__c where Service_Code__c =: data.code];
+             
+             			if(categoryExist.size() == 0)
+                         {
+
+                			if (response.getStatus() =='OK')
+         					{
+                				 SalesOrderServicesServiceEnablement__c SE=new SalesOrderServicesServiceEnablement__c();
+                 				 
+             	 				 SE.Name=data.name;
+                                 SE.Name_Arabic__c=data.nameAr;
+                                 SE.Service_Status__c=data.status;
+                                 SE.Service_Code__c=data.code;
+                                
+                                 SECode=data.code;
+                 				 SEName=data.name;
+                                
+                                 insert SE;
+              
+                 			}
+                			else
+         	 				{
+              	 				string error=String.valueOf(response.getBody());     
+               	 				verror= error.substringAfter('"errors":'); 
+          					}
+                 
+            			}
+           
+         		}
+            
+             System.debug('Responce body from get enablements: '+response.getBody());
+             System.debug('Responce body status from get enablements: '+response.getStatus());
+             Api_Type='Get';
+             ApiLogCreation.creation(Api_Type,'Service Enablements ', '' , '', response.getStatus(),Datetime.now(),verror,'');
+            
+        }
+        catch(Exception e)
+        {
+            System.debug('An unexpected error has occurred: ' + e.getMessage());
+        }
+    }
+}
+
+
+
+public class UpdateServiceEnablementValues 
+{
+	   @future (callout=true)
+    public static void UpdatePicklistValues(String picklistApiName, String newValue)
+    {
+ 	try 
+    {
+    
+ 		MetadataService.MetadataPort service = new MetadataService.MetadataPort();
+ 		service.SessionHeader = new MetadataService.SessionHeader_element();
+ 		service.SessionHeader.sessionId = UserInfo.getSessionId();
+        
+        
+ 		MetadataService.CustomField customField = (MetadataService.CustomField)
+		service.readMetadata('CustomField', new String[]{picklistApiName}).getRecords()[0];
+        
+        
+ 	
+ 		Map<String, String> existingValues = new Map<String, String>();
+        
+        
+ 		for (MetadataService.CustomValue objCustomValue : customField.valueSet.valueSetDefinition.value)
+        {
+			 existingValues.put(objCustomValue.fullName, objCustomValue.label);
+ 		}
+        
+        
+ 		MetadataService.CustomValue objCustomValue = new MetadataService.CustomValue();
+ 		objCustomValue.fullName = newValue;
+ 		objCustomValue.label = newValue;
+ 		objCustomValue.default_x = false;
+ 		objCustomValue.isActive = true;
+        
+        
+ 		if (existingValues.get(newValue) == null) {
+ 		    customField.valueSet.valueSetDefinition.value.add(objCustomValue);
+ 		     List<MetadataService.SaveResult> lstResults = service.updateMetadata(new MetadataService.Metadata[]{customField});
+ 		     for (MetadataService.SaveResult objResult : lstResults) {
+ 		      if (objResult.success)
+              {
+ 			    System.debug('Successfully updated');
+                
+ 		      } 
+              else 
+               {
+ 		         if (objResult.errors.size() > 0) 
+                 {
+ 		          System.debug('erorr : ' + objResult.errors[0].message);
+ 		         }
+ 		       }
+ 		    }
+ 		  }
+        
+         ApiLogCreation.creation('Update','Order Product_Service Enablements Picklist', '' ,'', 'OK',Datetime.now(),'','');
+        
+ 		} 
+        
+        catch (Exception e)
+        {
+ 		  System.debug( 'Error for Object '+ e);
+ 		}
+   }
+    
+
+}
+
+
+trigger ServiceEnablementInsert on SalesOrderServicesServiceEnablement__c (after insert)
+{
+    try 
+    {
+        for(SalesOrderServicesServiceEnablement__c serviceenablement:Trigger.New)
+        {
+            if(System.isFuture()==false)
+            {
+             
+       		UpdateServiceEnablementValues.UpdatePicklistValues('OrderItem.Service_Enablement__c',serviceenablement.Name);
+              
+            }
+        }
+        
+    }
+    catch(Exception e)
+    {
+         System.debug('An unexpected error has occurred: ' + e.getMessage());
+    }
+
+}
+
+
+global class GetServiceEnablementsSchedule implements Schedulable
+{
+
+ global static void execute(SchedulableContext SC)
+ {
+     GetServiceEnablement Getenablements =new GetServiceEnablement();
+     Getenablements.GetSalesServiceEnablements();
+ }
+}
+
+
+
+public class ServiceEnablementJSON 
+{
+	public string status;
+    public string message;
+    public List<Data> data;
+    
+    public class Data
+    {
+        public String name;
+        public String nameAr;
+        public String status;
+        public String code;
+    }
+    
+    public static ServiceEnablementJSON parse(String json) {
+        return (ServiceEnablementJSON) System.JSON.deserialize(json, ServiceEnablementJSON.class);
+    }
+}
+
+
+
+select AccountId,Account_Name1__c from Order where id='8013H000000qRscQAE'
+
+
+
+GetServiceEnablementsSchedule sn=new GetServiceEnablementsSchedule();
+sn.execute(null);
+
+
+*
+--None--
+
+
+OR
+( 
+AND(ISPICKVAL(Product_Parent__c,'Attachment'),
+ISPICKVAL(Attachment_Categories__c,'--None--')),
+AND(ISPICKVAL(Product_Parent__c,NOT('Attachment')),
+NOT(ISPICKVAL(Attachment_Categories__c,'--None--'))) 
+)
+
+
+AND(
+ISPICKVAL(Product_Parent__c,'Attachment'),
+ISPICKVAL(Attachment_Categories__c,'--None--')
+)
+
+
+Attachment Category	Attachment_Categories__c	Picklist
+
+
+
+
+trigger OrderInsert on Order (after insert) 
+{
+
+     try 
+    {
+        for(Order serviceenablements:Trigger.New)
+        {
+            if(System.isFuture()==false)
+            {
+             
+       		
+              
+            }
+        }
+        
+    }
+    catch(Exception e)
+    {
+         System.debug('An unexpected error has occurred: ' + e.getMessage());
+    }
+}
+
+
+public class CreateSalesOrderAPI
+{
+
+ 	@future (callout=true)
+    public static void salesOrderCreation(id orderId)
+    {
+       try
+       {
+           
+         string Api_Type;
+         string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+         Order ord=[select AccountId,Account_Name1__c from Order where id=:orderId];
+         Account acc=[select Account_ID__c,Name,Account_Name_in_Arabic_as_per_CR__c,Account_Number__c from Account where id =:ord.AccountId];
+         Contact cnt=[Select MobilePhone,Email FROM Contact WHERE AccountId =: ord.AccountId];
+        // select Name,Account_Name_in_Arabic_as_per_CR__c,Account_Number__c from Account where id = '0013H00000dm4aPQAQ'
+        // Select MobilePhone,Email FROM Contact WHERE AccountId ='0013H00000dm4aPQAQ'
+        // 0013H00000eOUAqQAO
+    
+         JSONGenerator jsonGen = JSON.createGenerator(true);
+         jsonGen.writeStartObject();
+         jsonGen.writeStringField('serviceType','CMS-001');
+         jsonGen.writeStringField('accountNo',acc.Account_Number__c);  
+         jsonGen.writeStringField('name',acc.Name);
+         jsonGen.writeStringField('nameAr',acc.Account_Name_in_Arabic_as_per_CR__c);
+         jsonGen.writeStringField('crNumber',acc.Account_Number__c);
+         jsonGen.writeStringField('mobileNumber',cnt.MobilePhone); 
+         jsonGen.writeStringField('contactPerson','tahir');
+         jsonGen.writeStringField('email',cnt.Email);
+         jsonGen.writeStringField('address','xhsg 25 karachi');
+         jsonGen.writeStringField('language','ENGLISH');
+         jsonGen.writeStringField('totalUnit','1');
+         jsonGen.writeStringField('totalFleet','50');
+         jsonGen.writeStringField('notes','karachi');
+         jsonGen.writeStringField('identityNumber','123');
+         jsonGen.writeStringField('issueDate','2/16/2023');
+         jsonGen.writeStringField('planCode','xyz');
+        
+        
+         jsonGen.writeEndObject();
+         String jsonData = jsonGen.getAsString();
+         HttpRequest req = new HttpRequest();
+         req.setMethod('POST');
+         req.setHeader('Authorization', mctk_API);
+         req.setHeader('Content-type', 'application/json');
+         req.setEndpoint('http://avl.com.sa:8799/salesforce/Customer/SalesOrder');
+         req.setBody(jsonData); 
+         Http http = new Http();
+         HTTPResponse response = http.send(req);
+         JSONParser parser = JSON.createParser(response.getBody());
+           
+         string pcode;
+         String data;
+         string verror;  
+         
+         if (response.getStatus() =='OK')
+         {
+              System.debug(response.getBody());
+              System.debug('created successfully');
+         }
+         else
+         {
+               System.debug('STATUS NOT OK :'+response.getStatus());
+               System.debug(response.getBody());
+         }
+         
+         
+         
+       }
+       catch(Exception e)
+        {
+            System.debug('An unexpected error has occurred: ' + e.getMessage());
+           
+        }
+        
+    }
+}
+
+
+
+public class UpdateSalesOrderAPI 
+{
+
+    @future (callout=true)
+    public static void salesorderUpdation(id orderId)
+    {
+        try
+        {
+
+         	string Api_Type;
+         	string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+         	Order ord=[select AccountId,Account_Name1__c from Order where id=:orderId];
+         	Account acc=[select Account_ID__c,Name,Account_Name_in_Arabic_as_per_CR__c,Account_Number__c from Account where id =:ord.AccountId];
+         	Contact cnt=[Select MobilePhone,Email FROM Contact WHERE AccountId =: ord.AccountId];
+        
+         	JSONGenerator jsonGen = JSON.createGenerator(true);
+         	jsonGen.writeStartObject();
+         	jsonGen.writeStringField('serviceType','CMS-001');
+         	jsonGen.writeStringField('accountNo',acc.Account_Number__c);  
+         	jsonGen.writeStringField('name',acc.Name);
+         	jsonGen.writeStringField('nameAr',acc.Account_Name_in_Arabic_as_per_CR__c);
+         	jsonGen.writeStringField('crNumber',acc.Account_Number__c);
+         	jsonGen.writeStringField('mobileNumber',cnt.MobilePhone); 
+         	jsonGen.writeStringField('contactPerson','tahir');
+         	jsonGen.writeStringField('email',cnt.Email);
+         	jsonGen.writeStringField('address','xhsg 25 karachi');
+         	jsonGen.writeStringField('language','ENGLISH');
+         	jsonGen.writeStringField('totalUnit','1');
+         	jsonGen.writeStringField('totalFleet','50');
+         	jsonGen.writeStringField('notes','karachi');
+         	jsonGen.writeStringField('identityNumber','123');
+         	jsonGen.writeStringField('issueDate','2/16/2023');
+         	jsonGen.writeStringField('planCode','xyz');
+        
+         	jsonGen.writeEndObject();
+         	String jsonData = jsonGen.getAsString();
+         	HttpRequest req = new HttpRequest();
+         	req.setMethod('PUT');
+         	req.setHeader('Authorization', mctk_API);
+         	req.setHeader('Content-type', 'application/json');
+         	req.setEndpoint('http://avl.com.sa:8799/salesforce/Customer/SalesOrder');
+         	req.setBody(jsonData); 
+         	Http http = new Http();
+         	HTTPResponse response = http.send(req);
+         	JSONParser parser = JSON.createParser(response.getBody());
+            
+            string pcode;
+         	String data;
+         	string verror;
+            
+            if (response.getStatus() =='OK')
+         	{
+              System.debug(response.getBody());
+              System.debug('Updated successfully');
+         	}
+         	else
+         	{
+               System.debug('STATUS  :'+response.getStatus());
+               System.debug(response.getBody());
+         	}
+
+    }
+    
+    catch(Exception e)
+    {
+        System.debug('An unexpected error has occurred: ' + e.getMessage());
+    }
+        
+    }
+}
+
+
+
+
+
+
+
+
+
+public class AttachmentCreationfromProduct {
+    @future (callout=true)
+    public Static void attachmentCreation(id productid)
+    {
+        try
+       {/*
+         string Api_Type;
+         string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+         Product2 prod=[select name,productcode,Attachment_Categories__c,API_Success__c from product2 where id =:productid];
+         Attachment_Category__c attachmentCategory=[Select Attachment_Category_Code__c from Attachment_Category__c where Name =: prod.Attachment_Categories__c];
+         JSONGenerator jsonGen = JSON.createGenerator(true);
+         jsonGen.writeStartObject();
+           
+         jsonGen.writeStringField('customerType','CTP-002');
+          
+         if(prod.Name==null)
+         {
+             prod.API_Response__c='Name is missing';
+             update prod;
+         }
+         else
+         {
+              jsonGen.writeStringField('name',prod.Name);
+           
+         }
+         
+      
+         if(prod.Name==null)
+         {
+             prod.API_Response__c='Arabic name is missing';
+             update prod;
+         }
+         else
+         {
+              jsonGen.writeStringField('nameAr',prod.Name);
+             
+         }
+         
+         jsonGen.writeStringField('port','1');
+         
+      
+         if(String.isNotBlank(prod.ProductCode))
+         {
+             jsonGen.writeStringField('code',prod.ProductCode);
+             
+         }
+         
+         jsonGen.writeStringField('deviceTypeCode','PRO-TKU-031');
+           
+         if(attachmentCategory.Attachment_Category_Code__c==null)
+         {
+             prod.API_Response__c='Attachment category code is missing';
+             update prod;
+         }
+         else
+         {
+         jsonGen.writeStringField('categoryCode',attachmentCategory.Attachment_Category_Code__c);
+             
+         }
+           
+         jsonGen.writeEndObject();
+         String jsonData = jsonGen.getAsString();
+         HttpRequest req = new HttpRequest();
+         req.setMethod('POST');
+         req.setHeader('Authorization', mctk_API);
+         req.setHeader('Content-type', 'application/json');
+         req.setEndpoint('http://avl.com.sa:8799/salesforce/Attachment');
+         req.setBody(jsonData); 
+         Http http = new Http();
+         HTTPResponse response = http.send(req);
+         JSONParser parser = JSON.createParser(response.getBody());
+           
+           
+         string pcode;
+         String data;
+         string verror;
+         if (response.getStatus() =='OK')
+         {
+            while (parser.nextToken() != null) 
+            {
+                if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'code'))
+                {
+                 parser.nextToken();
+                 pcode = parser.getText();
+                }
+                if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'message')) 
+                {
+                 parser.nextToken();
+                 data = parser.getText();
+                }
+             }
+               prod.API_Success__c=True;
+               prod.API_Response__c=data;
+               prod.ProductCode=pcode;
+               update prod; 
+         }
+           
+         else
+          {
+               string error=String.valueOf(response.getBody());     
+               verror= error.substringAfter('"errors":');
+               prod.API_Success__c=false;
+               prod.API_Response__c=verror;
+               update prod; 
+           }
+         
+         if(String.isNotBlank(prod.ProductCode))
+         {
+             Api_Type='Update';
+       	     ApiLogCreation.creation(Api_Type,'Attachment', productid , prod.Name, response.getStatus(),Datetime.now(),verror,'');
+             
+         }
+         else
+         {
+             Api_Type='Create';
+             ApiLogCreation.creation(Api_Type,'Attachment', productid , prod.Name, response.getStatus(),Datetime.now(),verror,'');
+         }
+*/
+       }
+        
+       catch(Exception e) 
+       {
+         	System.debug('An unexpected error has occurred: ' + e.getMessage());
+       }
+         
+    }
+    
+    
+}
+
+
+
+
+
+
+
+
+trigger AttachmentDeviceCreation on Product2 (after insert,after update) {
+
+    try
+    {
+        for(Product2 product:Trigger.New)
+        {
+            if(System.isFuture()==false)
+            {
+ 
+                     if(product.Product_Parent__c == 'Device')
+                     {
+                         DeviceCreationFromProduct.deviceCreation(product.Id);
+                     }
+                    if(product.Product_Parent__c == 'Attachment')
+                    {
+                        AttachmentCreationfromProduct.attachmentCreation(product.Id);
+                    }
+                  
+            }    
+        }
+    }
+    catch(Exception e) 
+    {
+           System.debug('An unexpected error has occurred: ' + e.getMessage());
+    }
+    
+}
+
+
+
+
+public class AttachmentCreationfromProduct {
+    @future (callout=true)
+    public Static void attachmentCreation(id productid)
+    {
+        try
+       {
+           /*
+         string Api_Type;
+         string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+         Product2 prod=[select name,productcode,Attachment_Categories__c,API_Success__c from product2 where id =:productid];
+         Attachment_Category__c attachmentCategory=[Select Attachment_Category_Code__c from Attachment_Category__c where Name =: prod.Attachment_Categories__c];
+         JSONGenerator jsonGen = JSON.createGenerator(true);
+         jsonGen.writeStartObject();
+           
+         jsonGen.writeStringField('customerType','CTP-002');
+          
+         if(prod.Name==null)
+         {
+             prod.API_Response__c='Name is missing';
+             update prod;
+         }
+         else
+         {
+              jsonGen.writeStringField('name',prod.Name);
+           
+         }
+         
+      
+         if(prod.Name==null)
+         {
+             prod.API_Response__c='Arabic name is missing';
+             update prod;
+         }
+         else
+         {
+              jsonGen.writeStringField('nameAr',prod.Name);
+             
+         }
+         
+         jsonGen.writeStringField('port','1');
+         
+      
+         if(String.isNotBlank(prod.ProductCode))
+         {
+             jsonGen.writeStringField('code',prod.ProductCode);
+             
+         }
+         
+         jsonGen.writeStringField('deviceTypeCode','PRO-TKU-031');
+           
+         if(attachmentCategory.Attachment_Category_Code__c==null)
+         {
+             prod.API_Response__c='Attachment category code is missing';
+             update prod;
+         }
+         else
+         {
+         jsonGen.writeStringField('categoryCode',attachmentCategory.Attachment_Category_Code__c);
+             
+         }
+           
+         jsonGen.writeEndObject();
+         String jsonData = jsonGen.getAsString();
+         HttpRequest req = new HttpRequest();
+         req.setMethod('POST');
+         req.setHeader('Authorization', mctk_API);
+         req.setHeader('Content-type', 'application/json');
+         req.setEndpoint('http://avl.com.sa:8799/salesforce/Attachment');
+         req.setBody(jsonData); 
+         Http http = new Http();
+         HTTPResponse response = http.send(req);
+         JSONParser parser = JSON.createParser(response.getBody());
+           
+           
+         string pcode;
+         String data;
+         string verror;
+         if (response.getStatus() =='OK')
+         {
+            while (parser.nextToken() != null) 
+            {
+                if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'code'))
+                {
+                 parser.nextToken();
+                 pcode = parser.getText();
+                }
+                if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'message')) 
+                {
+                 parser.nextToken();
+                 data = parser.getText();
+                }
+             }
+               prod.API_Success__c=True;
+               prod.API_Response__c=data;
+               prod.ProductCode=pcode;
+               update prod; 
+         }
+           
+         else
+          {
+               string error=String.valueOf(response.getBody());     
+               verror= error.substringAfter('"errors":');
+               prod.API_Success__c=false;
+               prod.API_Response__c=verror;
+               update prod; 
+           }
+         
+         if(String.isNotBlank(prod.ProductCode))
+         {
+             Api_Type='Update';
+       	     ApiLogCreation.creation(Api_Type,'Attachment', productid , prod.Name, response.getStatus(),Datetime.now(),verror,'');
+             
+         }
+         else
+         {
+             Api_Type='Create';
+             ApiLogCreation.creation(Api_Type,'Attachment', productid , prod.Name, response.getStatus(),Datetime.now(),verror,'');
+         }
+*/
+       }
+        
+       catch(Exception e) 
+       {
+         	System.debug('An unexpected error has occurred: ' + e.getMessage());
+       }
+         
+    }
+    
+    
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ATTACHMENT CATEGORY
+
+
+TRIGGER
+
+trigger AttachmentCatagory on Attachment_Category__c (after insert) 
+{
+    try 
+    {
+        for(Attachment_Category__c attachmentcategory:Trigger.New)
+        {
+            if(System.isFuture()==false)
+            {
+             
+       		  UpdateValues.UpdatePicklistValues('Product2.Attachment_Categories__c',attachmentcategory.Name);
+              
+            }
+        }
+        
+    }
+    catch(Exception e)
+    {
+         System.debug('An unexpected error has occurred: ' + e.getMessage());
+    }
+}
+
+
+
+META DATA API CLASS FOR ATTACHMENT CATEGORY
+
+public class UpdateValues {
+    
+     @future (callout=true)
+    public static void UpdatePicklistValues(String picklistApiName, String newValue)
+    {
+ 	try 
+    {
+    
+ 		MetadataService.MetadataPort service = new MetadataService.MetadataPort();
+ 		service.SessionHeader = new MetadataService.SessionHeader_element();
+ 		service.SessionHeader.sessionId = UserInfo.getSessionId();
+        
+        
+ 		MetadataService.CustomField customField = (MetadataService.CustomField)
+		service.readMetadata('CustomField', new String[]{picklistApiName}).getRecords()[0];
+        
+        
+ 	
+ 		Map<String, String> existingValues = new Map<String, String>();
+        
+        
+ 		for (MetadataService.CustomValue objCustomValue : customField.valueSet.valueSetDefinition.value)
+        {
+			 existingValues.put(objCustomValue.fullName, objCustomValue.label);
+ 		}
+        
+        
+ 		MetadataService.CustomValue objCustomValue = new MetadataService.CustomValue();
+ 		objCustomValue.fullName = newValue;
+ 		objCustomValue.label = newValue;
+ 		objCustomValue.default_x = false;
+ 		objCustomValue.isActive = true;
+        
+        
+ 		if (existingValues.get(newValue) == null) {
+ 		    customField.valueSet.valueSetDefinition.value.add(objCustomValue);
+ 		     List<MetadataService.SaveResult> lstResults = service.updateMetadata(new MetadataService.Metadata[]{customField});
+ 		     for (MetadataService.SaveResult objResult : lstResults) {
+ 		      if (objResult.success)
+              {
+ 			    System.debug('Successfully updated');
+ 		      } 
+              else 
+               {
+ 		         if (objResult.errors.size() > 0) 
+                 {
+ 		          System.debug('erorr : ' + objResult.errors[0].message);
+ 		         }
+ 		       }
+ 		    }
+ 		  }
+ 		} 
+        
+        catch (Exception e)
+        {
+ 		  System.debug( 'Error for Object '+ e);
+ 		}
+   }
+     
+}
+
+
+global class GetAttachmentCategorySchedule implements Schedulable 
+{
+ global void execute(SchedulableContext SC)
+ {
+     GetAttachmentCategory GetCategory =new GetAttachmentCategory();
+     GetCategory.createAttachmentCategoryRecord();
+ }
+}
+
+
+public class GetAttachmentCategory {
+
+    public  void createAttachmentCategoryRecord()
+    {
+        try
+       {
+         
+         string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+         List<Attachment_Category__c> attachmentList= New list<Attachment_Category__c>();
+         HttpRequest req = new HttpRequest();
+         req.setMethod('GET');
+         req.setHeader('Authorization', '60233b98-c324-41c4-925a-2223442e5a81');
+         req.setHeader('Content-type', 'application/json');
+         req.setEndpoint('http://avl.com.sa:8799/salesforce/AttachmentCategory');
+         Http http = new Http();
+         HTTPResponse response = http.send(req);
+
+         AttachmentCategoryJSON.parse(response.getBody());
+         
+         string Api_Type;
+         string acCode;
+         String acName;
+         string verror;
+            	 
+         for(AttachmentCategoryJSON.data data: AttachmentCategoryJSON.parse(response.getBody()).data)
+         {
+             Attachment_Category__c[] categoryExist=[Select Attachment_Category_Code__c from Attachment_Category__c where Attachment_Category_Code__c =: data.code];
+             
+             if(categoryExist.size() == 0)
+             {
+
+                if (response.getStatus() =='OK')
+         		{
+                 Attachment_Category__c ac=new Attachment_Category__c();
+                 ac.Attachment_Category_Code__c=data.code;
+             	 ac.Name=data.name;
+                 acCode=data.code;
+                 acName=data.name;
+                
+                 insert ac;
+              
+                 }
+                else
+         	 	{
+              	 string error=String.valueOf(response.getBody());     
+               	 verror= error.substringAfter('"errors":'); 
+          		}
+                 
+            }
+           
+         }
+                 Api_Type='Get';
+             	 ApiLogCreation.creation(Api_Type,'Attachment Category', acCode , acName, response.getStatus(),Datetime.now(),verror,'');
+                
+       }
+       catch(Exception e) 
+       {
+        	 System.debug('An unexpected error has occurred: ' + e.getMessage());
+        }
+    }
+}
+
+
+
+
+
+validation rule for case : when a specific value of a picklist is selected then other specific picklist field will be required !!!!
+
+AND(
+ISPICKVAL(Product_Parent__c,'Attachment'),
+ISBLANK(TEXT(Attachment_Categories__c))
+)
+
+
+
+
+
+
+
+
+
+
+
+
+<apex:page standardController="API_Log__c" extensions="ButtonTestClass" action="{!testbutton}" > 
+    <script>
+    	window.history.back();
+    </script>
+    <apex:pageBlock>
+        <apex:pageBlockTable value="{!API_Logs}" var="a" >
+            <apex:column value="{!a.Id}"/>
+        </apex:pageBlockTable>
+    </apex:pageBlock>
+</apex:page>
+	
+	
+	
+public class ButtonTestClass 
+{
+   
+    private ApexPages.StandardSetController standardSetController;
+    
+    public List<API_Log__c> APLList {get;set;}
+    
+   	private Set<Id> aplIds = new Set<Id>();
+    
+    public ButtonTestClass(ApexPages.StandardController controller)
+    {
+         this.standardSetController = standardSetController;
+    
+        	APLList = new List<API_Log__c>();
+
+        	for (API_Log__c apl : (List<API_Log__c>)standardSetController.getSelected())
+            { 
+             	system.debug('mem.Id--->'+apl.Id); 
+            	aplIds.add(apl.Id);
+        	}
+
+  //      APLList = [SELECT Id, Date_Receive, Specifications__c, Code__c, Name FROM API_Log__c WHERE ID IN: memIds];
+    }
+   
+    public static void testbutton()
+    {
+       
+        system.debug('apex class executed from api log list view buttom');
+    }
+    
+}
+
+
+
+
+
+<apex:page standardController="Account" recordSetVar="accs" extensions="JavaScript_DemoV1Ctrl">
+<apex:includeScript value="/soap/ajax/18.0/connection.js"/>
+    <script>
+       var GetIDs= '{!accIds}';
+    </script>
+</apex:page>
+
+
+
+
+NEED TO WORK OF SOQL QUERIES AND PARAMETERS IN THESE CLASSES 
+
+APIButtonVfPage
+ButtonTestClass
+trigger OrderInsert on Order (after insert) 
+public class CreateSalesOrderAPI
+public class UpdateSalesOrderAPI 
+public class DeleteSalesOrderAPI 
+public class GetServiceEnablement 
+public class CreateAttachmentUnitAPI
+public class DeleteAttachmentUnitAPI 
+public class CreateDeviceAPI 
+
+
+public class ButtonTestClass 
+{
+    public List<API_Log__c> GetIDs;
+    public String aplids{get;set;} 
+    
+    public ButtonTestClass(ApexPages.StandardSetController controller)
+    {
+        System.debug('Get Selected');
+        GetIDs = controller.getSelected();
+        aplids = '';  
+        for(API_Log__c apl : GetIDs){
+            aplids += apl.Id + ','; 
+            System.debug('Account ID : '+aplids);
+        }
+        aplids = aplids.removeEnd(','); 
+    }
+    public static void testbutton()
+    {
+       
+        system.debug('apex class executed from api log list view buttom');
+    }
+    
+}
+
+
+
+<apex:page standardController="API_Log__c" recordSetVar="apls" extensions="ButtonTestClass" action="{!testbutton}" > 
+    <apex:includeScript value="/soap/ajax/18.0/connection.js"/>
+    <script>
+       var GetIDs= '{!aplids}';
+    </script>
+</apex:page>
+
+
+
+
+trigger OrderInsert on Order (after insert) 
+{
+
+     try 
+    {
+        for(Order serviceenablements:Trigger.New)
+        {
+            if(System.isFuture()==false)
+            {
+             
+       		
+              
+            }
+        }
+        
+    }
+    catch(Exception e)
+    {
+         System.debug('An unexpected error has occurred: ' + e.getMessage());
+    }
+}
+
+
+public class CreateSalesOrderAPI
+{
+
+ 	@future (callout=true)
+    public static void salesOrderCreation(id orderId)
+    {
+       try
+       {
+           
+         string Api_Type;
+         string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+         Order ord=[select AccountId,Account_Name1__c from Order where id=:orderId];
+         Account acc=[select Account_ID__c,Name,Account_Name_in_Arabic_as_per_CR__c,Account_Number__c from Account where id =:ord.AccountId];
+         Contact cnt=[Select MobilePhone,Email FROM Contact WHERE AccountId =: ord.AccountId];
+      
+    
+         JSONGenerator jsonGen = JSON.createGenerator(true);
+         jsonGen.writeStartObject();
+         jsonGen.writeStringField('serviceType','CMS-001');
+         jsonGen.writeStringField('accountNo',acc.Account_Number__c);  
+         jsonGen.writeStringField('name',acc.Name);
+         jsonGen.writeStringField('nameAr',acc.Account_Name_in_Arabic_as_per_CR__c);
+         jsonGen.writeStringField('crNumber',acc.Account_Number__c);
+         jsonGen.writeStringField('mobileNumber',cnt.MobilePhone); 
+         jsonGen.writeStringField('contactPerson','tahir');
+         jsonGen.writeStringField('email',cnt.Email);
+         jsonGen.writeStringField('address','xhsg 25 karachi');
+         jsonGen.writeStringField('language','ENGLISH');
+         jsonGen.writeStringField('totalUnit','1');
+         jsonGen.writeStringField('totalFleet','50');
+         jsonGen.writeStringField('notes','karachi');
+         jsonGen.writeStringField('identityNumber','123');
+         jsonGen.writeStringField('issueDate','2/16/2023');
+         jsonGen.writeStringField('planCode','xyz');
+        
+        
+         jsonGen.writeEndObject();
+         String jsonData = jsonGen.getAsString();
+         HttpRequest req = new HttpRequest();
+         req.setMethod('POST');
+         req.setHeader('Authorization', mctk_API);
+         req.setHeader('Content-type', 'application/json');
+         req.setEndpoint('http://avl.com.sa:8799/salesforce/Customer/SalesOrder');
+         req.setBody(jsonData); 
+         Http http = new Http();
+         HTTPResponse response = http.send(req);
+         JSONParser parser = JSON.createParser(response.getBody());
+           
+         string pcode;
+         String data;
+         string verror;  
+         
+         if (response.getStatus() =='OK')
+         {
+              System.debug(response.getBody());
+              System.debug('created successfully');
+         }
+         else
+         {
+               System.debug('STATUS NOT OK :'+response.getStatus());
+               System.debug(response.getBody());
+         }
+         
+         
+         
+       }
+       catch(Exception e)
+        {
+            System.debug('An unexpected error has occurred: ' + e.getMessage());
+           
+        }
+        
+    }
+}
+
+
+
+
+public class UpdateSalesOrderAPI 
+{
+
+    @future (callout=true)
+    public static void salesorderUpdation(id orderId)
+    {
+        try
+        {
+
+         	string Api_Type;
+         	string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+            
+         	Order ord=[select AccountId,Account_Name1__c from Order where id=:orderId];
+         	Account acc=[select Account_ID__c,Name,Account_Name_in_Arabic_as_per_CR__c,Account_Number__c from Account where id =:ord.AccountId];
+         	Contact cnt=[Select MobilePhone,Email FROM Contact WHERE AccountId =: ord.AccountId];
+        
+         	JSONGenerator jsonGen = JSON.createGenerator(true);
+         	jsonGen.writeStartObject();
+         	jsonGen.writeStringField('serviceType','CMS-001');
+         	jsonGen.writeStringField('accountNo',acc.Account_Number__c);  
+         	jsonGen.writeStringField('name',acc.Name);
+         	jsonGen.writeStringField('nameAr',acc.Account_Name_in_Arabic_as_per_CR__c);
+         	jsonGen.writeStringField('crNumber',acc.Account_Number__c);
+         	jsonGen.writeStringField('mobileNumber',cnt.MobilePhone); 
+         	jsonGen.writeStringField('contactPerson','tahir');
+         	jsonGen.writeStringField('email',cnt.Email);
+         	jsonGen.writeStringField('address','xhsg 25 karachi');
+         	jsonGen.writeStringField('language','ENGLISH');
+         	jsonGen.writeStringField('totalUnit','1');
+         	jsonGen.writeStringField('totalFleet','50');
+         	jsonGen.writeStringField('notes','karachi');
+         	jsonGen.writeStringField('identityNumber','123');
+         	jsonGen.writeStringField('issueDate','2/16/2023');
+         	jsonGen.writeStringField('planCode','xyz');
+        
+         	jsonGen.writeEndObject();
+         	String jsonData = jsonGen.getAsString();
+         	HttpRequest req = new HttpRequest();
+         	req.setMethod('PUT');
+         	req.setHeader('Authorization', mctk_API);
+         	req.setHeader('Content-type', 'application/json');
+         	req.setEndpoint('http://avl.com.sa:8799/salesforce/Customer/SalesOrder');
+         	req.setBody(jsonData); 
+         	Http http = new Http();
+         	HTTPResponse response = http.send(req);
+         	JSONParser parser = JSON.createParser(response.getBody());
+            
+            string pcode;
+         	String data;
+         	string verror;
+            
+            if (response.getStatus() =='OK')
+         	{
+              System.debug(response.getBody());
+              System.debug('created successfully');
+         	}
+         	else
+         	{
+               System.debug('STATUS NOT OK :'+response.getStatus());
+               System.debug(response.getBody());
+         	}
+
+    }
+    
+    catch(Exception e)
+    {
+        System.debug('An unexpected error has occurred: ' + e.getMessage());
+    }
+        
+    }
+}
+
+
+
+
+
+public class DeleteSalesOrderAPI 
+{
+ 	@future(callout=true)
+    public static void salesOrderDelete(string code,string servicetype)
+    {
+        try
+        { 
+        	string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+        	HttpRequest req = new HttpRequest();
+        	req.setMethod('DELETE');
+        	req.setHeader('Authorization', mctk_API);
+        	req.setHeader('Content-type', 'application/json');
+        	req.setEndpoint('http://avl.com.sa:8799/salesforce/Customer/SalesOrder'+'/'+servicetype+'/'+code);
+        	Http http = new Http();
+        	HTTPResponse response = http.send(req); 
+     
+         	string verror1;
+         	string error1=String.valueOf(response.getBody());     
+         	verror1= error1.substringAfter('"errors":');
+          
+         	if (response.getStatus() =='OK')
+         	{
+             	ApiLogCreation.creation('Delete','Sales order', '' , '', response.getStatus(),Datetime.now(),verror1,code);
+         	}
+         	else
+         	{
+               ApiLogCreation.creation('Delete','Sales order', '' , '', response.getStatus(),Datetime.now(),verror1,code);
+         	}
+        }
+        catch(Exception e)
+        {
+             System.debug('An unexpected error has occurred: ' + e.getMessage());
+        }
+    }
+}
+
+
+
+
+public class GetServiceEnablement 
+{
+    public  void GetSalesServiceEnablements()
+    {
+        try
+        {
+           
+                        
+         	string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+         	List<SalesOrderServicesServiceEnablement__c> serviceenablements= New list<SalesOrderServicesServiceEnablement__c>();
+         	HttpRequest req = new HttpRequest();
+         	req.setMethod('GET');
+         	req.setHeader('Authorization', '60233b98-c324-41c4-925a-2223442e5a81');
+         	req.setHeader('Content-type', 'application/json');
+         	req.setEndpoint('http://avl.com.sa:8799/salesforce/Customer/SalesOrderServices');
+         	Http http = new Http();
+         	HTTPResponse response = http.send(req);
+
+         	ServiceEnablementJSON.parse(response.getBody());
+ 			string Api_Type;
+         	string SECode;
+         	String SEName;
+         	string verror;            
+            for(ServiceEnablementJSON.data data: ServiceEnablementJSON.parse(response.getBody()).data)
+         		{
+             		SalesOrderServicesServiceEnablement__c[] categoryExist=[Select Service_Code__c from SalesOrderServicesServiceEnablement__c where Service_Code__c =: data.code];
+             
+             			if(categoryExist.size() == 0)
+                         {
+
+                			if (response.getStatus() =='OK')
+         					{
+                				 SalesOrderServicesServiceEnablement__c SE=new SalesOrderServicesServiceEnablement__c();
+                 				 
+             	 				 SE.Name=data.name;
+                                 SE.Name_Arabic__c=data.nameAr;
+                                 SE.Service_Status__c=data.status;
+                                 SE.Service_Code__c=data.code;
+                                
+                                 SECode=data.code;
+                 				 SEName=data.name;
+                                
+                                 insert SE;
+              
+                 			}
+                			else
+         	 				{
+              	 				string error=String.valueOf(response.getBody());     
+               	 				verror= error.substringAfter('"errors":'); 
+          					}
+                 
+            			}
+           
+         		}
+            
+             Api_Type='Get';
+             ApiLogCreation.creation(Api_Type,'Service Enablements ', '' , '', response.getStatus(),Datetime.now(),verror,'');
+            
+        }
+        catch(Exception e)
+        {
+            System.debug('An unexpected error has occurred: ' + e.getMessage());
+        }
+    }
+}
+
+
+
+public class CreateAttachmentUnitAPI 
+{
+
+    
+ 	@future (callout=true)
+    //parameters need to be set !!
+    public static void attachmentUnitCreation(id orderId)
+    {
+       try
+       {
+            string Api_Type;
+         	string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+         	//Order ord=[select AccountNumber from Order where id=:orderId];
+         	//Account acc=[select Account_ID__c,Name,Account_Name_in_Arabic_as_per_CR__c,Account_Number__c from Account where id =:ord.AccountId];
+         	//Contact cnt=[Select MobilePhone,Email FROM Contact WHERE AccountId =: ord.AccountId];
+         	
+            JSONGenerator jsonGen = JSON.createGenerator(true);
+         	jsonGen.writeStartObject();
+         	jsonGen.writeStringField('serviceType','CMS-001');
+         	jsonGen.writeStringField('accountNo','');  
+         	jsonGen.writeStringField('attachmentCode','');
+         	jsonGen.writeStringField('imei','');
+         	jsonGen.writeStringField('port','');
+         	jsonGen.writeStringField('alias',''); 
+           
+            jsonGen.writeEndObject();
+         	String jsonData = jsonGen.getAsString();
+         	HttpRequest req = new HttpRequest();
+         	req.setMethod('POST');
+         	req.setHeader('Authorization', mctk_API);
+         	req.setHeader('Content-type', 'application/json');
+         	req.setEndpoint('http://avl.com.sa:8799/salesforce/AttachmentUnits');
+         	req.setBody(jsonData); 
+         	Http http = new Http();
+         	HTTPResponse response = http.send(req);
+         	JSONParser parser = JSON.createParser(response.getBody());
+           
+            string pcode;
+         	String data;
+         	string verror;  
+         
+         	if (response.getStatus() =='OK')
+         	{
+              	System.debug(response.getBody());
+              	System.debug('created successfully');
+         	}
+         	else
+         	{
+               System.debug('STATUS NOT OK :'+response.getStatus());
+               System.debug(response.getBody());
+         	}
+         
+           
+       }
+       catch(Exception e)
+       {
+             System.debug('An unexpected error has occurred: ' + e.getMessage());
+       }
+    }
+}
+
+
+
+
+public class DeleteAttachmentUnitAPI 
+{
+    @future(callout=true)
+    public static void attachmentUnitDelete(string code,string servicetype,string imei)
+    {
+        try
+        {
+    			string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+        		HttpRequest req = new HttpRequest();
+        		req.setMethod('DELETE');
+        		req.setHeader('Authorization', mctk_API);
+        		req.setHeader('Content-type', 'application/json');
+        		req.setEndpoint('http://avl.com.sa:8799/salesforce/AttachmentUnits'+'/'+servicetype+'/'+code+'/'+imei);
+        		Http http = new Http();
+        		HTTPResponse response = http.send(req); 
+                
+                string verror1;
+         		string error1=String.valueOf(response.getBody());     
+         		verror1= error1.substringAfter('"errors":');
+          
+         		if (response.getStatus() =='OK')
+         		{
+             		ApiLogCreation.creation('Delete','Attachment Units', '' , '', response.getStatus(),Datetime.now(),verror1,code);
+         		}
+         		else
+         		{
+               		ApiLogCreation.creation('Delete','Attachment Units', '' , '', response.getStatus(),Datetime.now(),verror1,code);
+         		}
+        }
+        catch(Exception e)
+        {
+            System.debug('An unexpected error has occurred: ' + e.getMessage());
+        }
+    }
+
+}
+
+
+
+public class CreateDeviceAPI 
+{
+
+    @future (callout=true)
+    //parameters need to be set !!
+    public static void deviceAPICreation(id deviceId)
+    {
+       try
+       {
+            string Api_Type;
+         	string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+            
+            //soql queries 
+            
+            JSONGenerator jsonGen = JSON.createGenerator(true);
+         	jsonGen.writeStartObject();
+         	jsonGen.writeStringField('serviceType','CMS-001');
+         	jsonGen.writeStringField('accountNo','');  
+         	jsonGen.writeStringField('sid','');
+         	jsonGen.writeStringField('imei','');
+         	jsonGen.writeStringField('uid','');
+         	jsonGen.writeStringField('simCode','');
+            jsonGen.writeStringField('simNumber','');
+            jsonGen.writeStringField('deviceTypeCode','');
+            jsonGen.writeStringField('plateNumber','');
+           
+           
+            jsonGen.writeEndObject();
+         	String jsonData = jsonGen.getAsString();
+         	HttpRequest req = new HttpRequest();
+         	req.setMethod('POST');
+         	req.setHeader('Authorization', mctk_API);
+         	req.setHeader('Content-type', 'application/json');
+         	req.setEndpoint('http://avl.com.sa:8799/salesforce/Device');
+         	req.setBody(jsonData); 
+         	Http http = new Http();
+         	HTTPResponse response = http.send(req);
+         	JSONParser parser = JSON.createParser(response.getBody());
+           
+           
+            string pcode;
+         	String data;
+         	string verror;  
+         
+         	if (response.getStatus() =='OK')
+         	{
+              	System.debug(response.getBody());
+              	System.debug('created successfully');
+         	}
+         	else
+         	{
+               System.debug('STATUS NOT OK :'+response.getStatus());
+               System.debug(response.getBody());
+         	}
+         
+            
+           
+       }
+       catch(Exception e)
+       {
+           System.debug('An unexpected error accured');
+       }
+    }
+}
+
+
+
+
+
+ "accountNo": "115-c",
+  "name": "test112",
+  "nameAr": "testtest",
+  "mobileNumber": "522998876",
+  "email": "test112@gmail.com",
+  
+  
+  
+  
+    string Api_Type;
+         string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+         Order ord=[select AccountId,Account_Name1__c,Authorized_Email__c,Authorized_Phone__c,Plan__c from Order where id=:orderId];
+         System.debug(ord);
+         PLans__c plan =[select Plan_Code__c from PLans__c where Name=:ord.Plan__c];
+         System.debug(plan);  
+         Account acc=[select Account_ID__c,Name,Account_Name_in_Arabic_as_per_CR__c,Account_Number__c,CR_Number__c from Account where id =:ord.AccountId];
+         System.debug(acc);  
+        //Contact cnt=[Select MobilePhone,Email FROM Contact WHERE AccountId =: ord.AccountId];
+         list<AggregateResult> orderproducts = new list<AggregateResult>([select Service_Enablement__c from OrderItem where OrderId =:orderId  GROUP BY Service_Enablement__c ]);
+         System.debug(orderproducts);
+           
+        
+         list<string> SEset=new list<string>();
+           for(OrderItem orderitemss :[select Service_Enablement__c from OrderItem where OrderId =:orderId ])
+           {
+                SalesOrderServicesServiceEnablement__c serviceEnablement=[select Service_Code__c from SalesOrderServicesServiceEnablement__c where Name =:orderitemss.Service_Enablement__c];
+               		
+               		if(SEset.contains(serviceEnablement.Service_Code__c) == False)
+               		{
+                        
+                   		SEset.add(serviceEnablement.Service_Code__c);
+               		}
+             
+           }
+           
+           System.debug(SEset);
+           string servicetypeCode= string.join(SEset,',');
+            System.debug(servicetypeCode);
+           
+		   
+		   
+public class CreateSalesOrderAPI
+{
+
+ 	@future (callout=true)
+    public static void salesOrderCreation(id orderId)
+    {
+       try
+       {
+           
+         string Api_Type;
+         string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+         Order ord=[select AccountId,Account_Name1__c,Authorized_Email__c,Authorized_Phone__c,Plan__c from Order where id=:orderId];
+         System.debug(ord);
+         PLans__c plan =[select Plan_Code__c from PLans__c where Name=:ord.Plan__c];
+         System.debug(plan);  
+         Account acc=[select Account_ID__c,Name,Account_Name_in_Arabic_as_per_CR__c,Account_Number__c,CR_Number__c from Account where id =:ord.AccountId];
+         System.debug(acc);  
+        //Contact cnt=[Select MobilePhone,Email FROM Contact WHERE AccountId =: ord.AccountId];
+         list<AggregateResult> orderproducts = new list<AggregateResult>([select Service_Enablement__c from OrderItem where OrderId =:orderId  GROUP BY Service_Enablement__c ]);
+         System.debug(orderproducts);
+           
+        
+         list<string> SEset=new list<string>();
+           for(OrderItem orderitemss :[select Service_Enablement__c from OrderItem where OrderId =:orderId ])
+           {
+                SalesOrderServicesServiceEnablement__c serviceEnablement=[select Service_Code__c from SalesOrderServicesServiceEnablement__c where Name =:orderitemss.Service_Enablement__c];
+               		
+               		if(SEset.contains(serviceEnablement.Service_Code__c) == False)
+               		{
+                        
+                   		SEset.add(serviceEnablement.Service_Code__c);
+               		}
+             
+           }
+           
+           System.debug(SEset);
+           string servicetypeCode= string.join(SEset,',');
+           System.debug(servicetypeCode);  
+    
+         JSONGenerator jsonGen = JSON.createGenerator(true);
+         jsonGen.writeStartObject();
+         jsonGen.writeStringField('serviceType',servicetypeCode);
+         jsonGen.writeStringField('accountNo',acc.Account_Number__c);  
+         jsonGen.writeStringField('name',acc.Name);
+         jsonGen.writeStringField('nameAr',acc.Account_Name_in_Arabic_as_per_CR__c);
+         jsonGen.writeStringField('crNumber',acc.CR_Number__c);
+         jsonGen.writeStringField('mobileNumber',ord.Authorized_Phone__c); 
+         jsonGen.writeStringField('contactPerson','');
+         jsonGen.writeStringField('email',ord.Authorized_Email__c);
+         jsonGen.writeStringField('address','');
+         jsonGen.writeStringField('language','');
+         jsonGen.writeStringField('totalUnit','');
+         jsonGen.writeStringField('totalFleet','');
+         jsonGen.writeStringField('notes','');
+         jsonGen.writeStringField('identityNumber','');
+         jsonGen.writeStringField('issueDate','');
+         jsonGen.writeStringField('planCode',plan.Plan_Code__c);
+        
+        
+         jsonGen.writeEndObject();
+         String jsonData = jsonGen.getAsString();
+         HttpRequest req = new HttpRequest();
+         req.setMethod('POST');
+         req.setHeader('Authorization', mctk_API);
+         req.setHeader('Content-type', 'application/json');
+         req.setEndpoint('http://avl.com.sa:8799/salesforce/Customer/SalesOrder');
+         req.setBody(jsonData); 
+         Http http = new Http();
+         HTTPResponse response = http.send(req);
+         JSONParser parser = JSON.createParser(response.getBody());
+           
+         string pcode;
+         String data;
+         string verror;  
+         
+         if (response.getStatus() =='OK')
+         {
+              System.debug(response.getBody());
+              System.debug('created successfully');
+         }
+         else
+         {
+               System.debug('STATUS NOT OK :'+response.getStatus());
+               System.debug(response.getBody());
+         }
+         
+         
+         
+       }
+       catch(Exception e)
+        {
+            System.debug('An unexpected error has occurred: ' + e.getMessage());
+           
+        }
+        
+    }
+}
+
+
+
+
+public class CreateSalesOrderAPI
+{
+
+ 	@future (callout=true)
+    public static void salesOrderCreation(id orderId)
+    {
+       try
+       {
+           
+         string Api_Type;
+         string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+         Order ord=[select AccountId,Account_Name1__c from Order where id=:orderId];
+         System.debug(ord);
+        // PLans__c plan =[select Plan_Code__c from PLans__c where Name=:ord.Plan__c];
+       
+         Account acc=[select Account_ID__c,Name,Account_Name_in_Arabic_as_per_CR__c,Account_Number__c,CR_Number__c from Account where id =:ord.AccountId];
+         System.debug(acc);  
+        //Contact cnt=[Select MobilePhone,Email FROM Contact WHERE AccountId =: ord.AccountId];
+         list<AggregateResult> orderproducts = new list<AggregateResult>([select Service_Enablement__c from OrderItem where OrderId =:orderId  GROUP BY Service_Enablement__c ]);
+         System.debug(orderproducts);
+           
+        
+         list<string> SEset=new list<string>();
+           for(OrderItem orderitemss :[select Service_Enablement__c from OrderItem where OrderId =:orderId ])
+           {
+                SalesOrderServicesServiceEnablement__c serviceEnablement=[select Service_Code__c from SalesOrderServicesServiceEnablement__c where Name =:orderitemss.Service_Enablement__c];
+               		
+               		if(SEset.contains(serviceEnablement.Service_Code__c) == False)
+               		{
+                        
+                   		SEset.add(serviceEnablement.Service_Code__c);
+               		}
+             
+           }
+           string servicetypeCode= string.join(SEset,',');
+        
+    
+         JSONGenerator jsonGen = JSON.createGenerator(true);
+         jsonGen.writeStartObject();
+         jsonGen.writeStringField('serviceType',servicetypeCode);
+         jsonGen.writeStringField('accountNo',acc.Account_Number__c);  
+         jsonGen.writeStringField('name',acc.Name);
+         jsonGen.writeStringField('nameAr',acc.Account_Name_in_Arabic_as_per_CR__c);
+         jsonGen.writeStringField('crNumber',acc.CR_Number__c);
+         jsonGen.writeStringField('mobileNumber','92343459'); 
+         jsonGen.writeStringField('contactPerson','');
+         jsonGen.writeStringField('email','testtest@gmail.com');
+         jsonGen.writeStringField('address','');
+         jsonGen.writeStringField('language','');
+         jsonGen.writeStringField('totalUnit','1');
+         jsonGen.writeStringField('totalFleet','50');
+         jsonGen.writeStringField('notes','');
+         jsonGen.writeStringField('identityNumber','');
+         jsonGen.writeStringField('issueDate','');
+         jsonGen.writeStringField('planCode','PLN-015');
+        
+        
+         jsonGen.writeEndObject();
+         String jsonData = jsonGen.getAsString();
+         HttpRequest req = new HttpRequest();
+         req.setMethod('POST');
+         req.setHeader('Authorization', mctk_API);
+         req.setHeader('Content-type', 'application/json');
+         req.setEndpoint('http://avl.com.sa:8799/salesforce/Customer/SalesOrder');
+         req.setBody(jsonData); 
+         Http http = new Http();
+         HTTPResponse response = http.send(req);
+         JSONParser parser = JSON.createParser(response.getBody());
+           
+         string pcode;
+         String data;
+         string verror;  
+         
+         if (response.getStatus() =='OK')
+         { while (parser.nextToken() != null) 
+            {
+                
+                if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'message')) 
+                {
+                 parser.nextToken();
+                 data = parser.getText();
+                }
+             }
+               ord.API_Success__c=True;
+               ord.API_Response__c=data;
+          	   system.debug('order created');
+               update ord; 
+         }
+         else
+         {
+              while (parser.nextToken() != null) 
+            {
+                if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'code'))
+                {
+                 parser.nextToken();
+                 pcode = parser.getText();
+                }
+             }
+             
+               system.debug('order not created');
+             system.debug(response.getBody());
+               string error=String.valueOf(response.getBody());     
+               verror= error.substringAfter('"errors":');
+               ord.API_Success__c=false;
+               ord.API_Response__c=(response.getBody());
+               update ord; 
+         }
+         
+         
+         
+       }
+       catch(Exception e)
+        {
+            System.debug('An unexpected error has occurred: ' + e.getMessage());
+           
+        }
+        
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+public class CreateSalesOrderAPI
+{
+
+ 	@future (callout=true)
+    public static void salesOrderCreation(id orderId)
+    {
+       try
+       {
+           
+         string Api_Type;
+         string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+         Order ord=[select AccountId,Account_Name1__c from Order where id=:orderId];
+         System.debug(ord);
+        //PLans__c plan =[select Plan_Code__c from PLans__c where Name=:ord.Plan__c];
+       
+         Account acc=[select Account_ID__c,Name,Account_Name_in_Arabic_as_per_CR__c,Account_Number__c,CR_Number__c from Account where id =:ord.AccountId];
+         System.debug(acc);  
+        Contact cnt=[Select MobilePhone,Email FROM Contact WHERE AccountId =: ord.AccountId];
+         list<AggregateResult> orderproducts = new list<AggregateResult>([select Service_Enablement__c from OrderItem where OrderId =:orderId  GROUP BY Service_Enablement__c ]);
+         System.debug(orderproducts);
+           
+        
+         list<string> SEset=new list<string>();
+           for(OrderItem orderitemss :[select Service_Enablement__c from OrderItem where OrderId =:orderId ])
+           {
+                SalesOrderServicesServiceEnablement__c serviceEnablement=[select Service_Code__c from SalesOrderServicesServiceEnablement__c where Name =:orderitemss.Service_Enablement__c];
+               		
+               		if(SEset.contains(serviceEnablement.Service_Code__c) == False)
+               		{
+                        
+                   		SEset.add(serviceEnablement.Service_Code__c);
+               		}
+             
+           }
+          string servicetypeCode= string.join(SEset,'');
+             system.debug(servicetypeCode);
+        
+    
+         JSONGenerator jsonGen = JSON.createGenerator(true);
+         jsonGen.writeStartObject();
+         jsonGen.writeStringField('serviceType','CMS-002');
+         jsonGen.writeStringField('accountNo',acc.Account_Number__c);  
+         jsonGen.writeStringField('name',acc.Name);
+         jsonGen.writeStringField('nameAr',acc.Account_Name_in_Arabic_as_per_CR__c);
+         jsonGen.writeStringField('crNumber',acc.CR_Number__c);
+         jsonGen.writeStringField('mobileNumber',cnt.MobilePhone); 
+         jsonGen.writeStringField('contactPerson','xyz');
+         jsonGen.writeStringField('email',cnt.Email);
+         jsonGen.writeStringField('address','');
+         jsonGen.writeStringField('language','');
+         jsonGen.writeStringField('totalUnit','1');
+         jsonGen.writeStringField('totalFleet','50');
+         jsonGen.writeStringField('notes','');
+         jsonGen.writeStringField('identityNumber','');
+         jsonGen.writeStringField('issueDate','');
+         jsonGen.writeStringField('planCode','PLN-004');
+        
+        
+         jsonGen.writeEndObject();
+         String jsonData = jsonGen.getAsString();
+         HttpRequest req = new HttpRequest();
+         req.setMethod('POST');
+         req.setHeader('Authorization', mctk_API);
+         req.setHeader('Content-type', 'application/json');
+         req.setEndpoint('http://avl.com.sa:8799/salesforce/Customer/SalesOrder');
+         req.setBody(jsonData); 
+         Http http = new Http();
+         HTTPResponse response = http.send(req);
+         JSONParser parser = JSON.createParser(response.getBody());
+           
+         string pcode;
+         String data;
+         string verror;  
+         
+         if (response.getStatus() =='OK')
+         { while (parser.nextToken() != null) 
+            {
+                
+                if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'message')) 
+                {
+                 parser.nextToken();
+                 data = parser.getText();
+                }
+             }
+               ord.API_Success__c=True;
+               ord.API_Response__c=data;
+          	   system.debug('order created');
+               update ord; 
+         }
+         else
+         {
+              while (parser.nextToken() != null) 
+            {
+                if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'code'))
+                {
+                 parser.nextToken();
+                 pcode = parser.getText();
+                }
+             }
+             
+               system.debug('order not created');
+             system.debug(response.getBody());
+               string error=String.valueOf(response.getBody());     
+               verror= error.substringAfter('"errors":');
+               ord.API_Success__c=false;
+               ord.API_Response__c=(response.getBody());
+               update ord; 
+         }
+         
+          ApiLogCreation.creation('Create','Sales Order', orderId , acc.Name, response.getStatus(),Datetime.now(),verror,'');
+         
+       }
+       catch(Exception e)
+        {
+            System.debug('An unexpected error has occurred: ' + e.getMessage());
+           
+        }
+        
+    }
+}
+
+
+
+
+
+public class UpdateSalesOrderAPI 
+{
+
+    @future (callout=true)
+    public static void salesorderUpdation(id orderId)
+    {
+        try
+        {
+
+         	string Api_Type;
+         	string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+            
+          Order ord=[select AccountId,Account_Name1__c from Order where id=:orderId];
+         System.debug(ord);
+        //PLans__c plan =[select Plan_Code__c from PLans__c where Name=:ord.Plan__c];
+       
+         Account acc=[select Account_ID__c,Name,Account_Name_in_Arabic_as_per_CR__c,Account_Number__c,CR_Number__c from Account where id =:ord.AccountId];
+         System.debug(acc);  
+        Contact cnt=[Select MobilePhone,Email FROM Contact WHERE AccountId =: ord.AccountId];
+         list<AggregateResult> orderproducts = new list<AggregateResult>([select Service_Enablement__c from OrderItem where OrderId =:orderId  GROUP BY Service_Enablement__c ]);
+         System.debug(orderproducts);
+           
+        
+         list<string> SEset=new list<string>();
+           for(OrderItem orderitemss :[select Service_Enablement__c from OrderItem where OrderId =:orderId ])
+           {
+                SalesOrderServicesServiceEnablement__c serviceEnablement=[select Service_Code__c from SalesOrderServicesServiceEnablement__c where Name =:orderitemss.Service_Enablement__c];
+               		
+               		if(SEset.contains(serviceEnablement.Service_Code__c) == False)
+               		{
+                        
+                   		SEset.add(serviceEnablement.Service_Code__c);
+               		}
+             
+           }
+          string servicetypeCode= string.join(SEset,'');
+             system.debug(servicetypeCode);
+        
+         	JSONGenerator jsonGen = JSON.createGenerator(true);
+         	jsonGen.writeStartObject();
+            jsonGen.writeStringField('serviceType','CMS-002');
+         	jsonGen.writeStringField('accountNo',acc.Account_Number__c);  
+         	jsonGen.writeStringField('name',acc.Name);
+         	jsonGen.writeStringField('nameAr',acc.Account_Name_in_Arabic_as_per_CR__c);
+         	jsonGen.writeStringField('crNumber',acc.CR_Number__c);
+         	jsonGen.writeStringField('mobileNumber',cnt.MobilePhone); 
+         	jsonGen.writeStringField('contactPerson','xyz');
+         	jsonGen.writeStringField('email',cnt.Email);
+         	jsonGen.writeStringField('address','');
+         	jsonGen.writeStringField('language','');
+         	jsonGen.writeStringField('totalUnit','1');
+         	jsonGen.writeStringField('totalFleet','50');
+         	jsonGen.writeStringField('notes','');
+         	jsonGen.writeStringField('identityNumber','');
+         	jsonGen.writeStringField('issueDate','');
+         	jsonGen.writeStringField('planCode','PLN-004');
+        
+         	jsonGen.writeEndObject();
+         	String jsonData = jsonGen.getAsString();
+         	HttpRequest req = new HttpRequest();
+         	req.setMethod('PUT');
+         	req.setHeader('Authorization', mctk_API);
+         	req.setHeader('Content-type', 'application/json');
+         	req.setEndpoint('http://avl.com.sa:8799/salesforce/Customer/SalesOrder');
+         	req.setBody(jsonData); 
+         	Http http = new Http();
+         	HTTPResponse response = http.send(req);
+         	JSONParser parser = JSON.createParser(response.getBody());
+            
+            string pcode;
+         	String data;
+         	string verror;
+  
+         
+         if (response.getStatus() =='OK')
+         { while (parser.nextToken() != null) 
+            {
+                
+                if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'message')) 
+                {
+                 parser.nextToken();
+                 data = parser.getText();
+                }
+             }
+               ord.API_Success__c=True;
+               ord.API_Response__c=data;
+          	   system.debug('order created');
+               update ord; 
+         }
+         else
+         {
+              while (parser.nextToken() != null) 
+            {
+                if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'code'))
+                {
+                 parser.nextToken();
+                 pcode = parser.getText();
+                }
+             }
+             
+               system.debug('order not created');
+             system.debug(response.getBody());
+               string error=String.valueOf(response.getBody());     
+               verror= error.substringAfter('"errors":');
+               ord.API_Success__c=false;
+               ord.API_Response__c=(response.getBody());
+               update ord; 
+         }
+         
+  			ApiLogCreation.creation('Update','Sales Order', orderId , acc.Name, response.getStatus(),Datetime.now(),verror,'');
+    }
+    
+    catch(Exception e)
+    {
+        System.debug('An unexpected error has occurred: ' + e.getMessage());
+    }
+        
+    }
+}
+
+
+
+
+public class DeleteSalesOrderAPI 
+{
+ 	@future(callout=true)
+    public static void salesOrderDelete(string code,string servicetype)
+    {
+        try
+        { 
+        	string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+        	HttpRequest req = new HttpRequest();
+        	req.setMethod('DELETE');
+        	req.setHeader('Authorization', mctk_API);
+        	req.setHeader('Content-type', 'application/json');
+        	req.setEndpoint('http://avl.com.sa:8799/salesforce/Customer/SalesOrder'+'/'+servicetype+'/'+code);
+        	Http http = new Http();
+        	HTTPResponse response = http.send(req); 
+     
+         	string verror1;
+         	string error1=String.valueOf(response.getBody());     
+         	verror1= error1.substringAfter('"errors":');
+          
+         	if (response.getStatus() =='OK')
+         	{
+             	ApiLogCreation.creation('Delete','Sales order', '' , '', response.getStatus(),Datetime.now(),verror1,code);
+         	}
+         	else
+         	{
+               ApiLogCreation.creation('Delete','Sales order', '' , '', response.getStatus(),Datetime.now(),verror1,code);
+         	}
+        }
+        catch(Exception e)
+        {
+             System.debug('An unexpected error has occurred: ' + e.getMessage());
+        }
+    }
+}
+
+
+
+

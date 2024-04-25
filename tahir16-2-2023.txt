@@ -1,0 +1,62 @@
+ACCESSORIES   y
+BUZZER                 y       
+DOOR SENSOR             y 
+DU FUEL LEVEL SENSOR    y 
+FLUID LEVEL SENSOR      y 
+G SENSOR                y 
+GARMIN FMI               y
+GAS LEVEL SENSOR         y         
+I-BUTTON                  y
+IMMOBILIZER               y
+IN_BUILT WEIGHT SENSOR    y
+KEY BOARD                 y
+KEY DETECTOR             y 
+LED INDICATOR             y
+PANIC BUTTON              y
+RFID CARD                 y
+ROTATION SENSOR           y
+SEAT BELT SENSOR          y
+SWITCH (CHILLER)          y
+WEIGHT SENSOR             y
+TRAILOR ID SENSOR CANBUS       y
+WASTE CONTAINER IDENTIFICATION  y
+BLUETOOTH                        y
+CL CANBUS                  y
+CONVERTOR                  y
+ 
+CANBUS          y
+HUMIDITY SENSOR       y
+RFID READER    y
+SIGNAGE SENSOR   y
+TEMPERATURE SENSOR    y
+CAMERA             y         
+ 
+
+API Failed Reprocess
+APIFailureScheduleClass
+
+global class APIFailureScheduleClass implements Schedulable 
+{
+     global void execute(SchedulableContext SC)
+     {
+      GetAPIRecorsdsForReProcessing GPFR =new GetAPIRecorsdsForReProcessing();
+         GPFR.GetProducts();
+         GPFR.GetAccounts();
+         GPFR.GetAPILogs();
+     }
+}
+
+
+
+Get Attachment Categories
+GetAttachmentCategorySchedule
+
+global class GetAttachmentCategorySchedule implements Schedulable 
+{
+ global void execute(SchedulableContext SC)
+ {
+     GetAttachmentCategory GetCategory =new GetAttachmentCategory();
+     GetCategory.createAttachmentCategoryRecord();
+ }
+}
+

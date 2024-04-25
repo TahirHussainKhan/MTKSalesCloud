@@ -1,0 +1,302 @@
+trigger AttachmentUnitDeviceCreationFromAsset on Asset (after update) 
+{
+    try
+    {
+         for(Asset ASSETcreate:Trigger.New)
+        {
+            if(System.isFuture()==false)
+            {
+    
+             if(ASSETcreate.Status=='Installed'&& ASSETcreate.API_Success__c==False && ASSETcreate.API_Response__c==null && ASSETcreate.Cancelled__c==False)
+                {
+                     Asset asst=[select Product2Id,Asset_Type__c,IMEI__c,Order__c,Master_Asset__c from Asset where id=:ASSETcreate.ID];
+                     Product2 prod=[select Product_Parent__c,ProductCode from Product2 where id=:asst.Product2Id];
+                  
+                    if(prod.Product_Parent__c=='Device')
+                    {
+                        DeviceCreationFromAsset.deviceAPICreation(ASSETcreate.Id,prod.ProductCode);
+                    }    
+                }
+       
+                else if(ASSETcreate.Status=='Installed' && ASSETcreate.Cancelled__c==True && ASSETcreate.API_Success__c==True && ASSETcreate.API_Response__c!=null)
+                {
+                      Asset asst=[select IMEI__c,Product2Id from Asset where id=:ASSETcreate.ID];
+                      Product2 prod=[select Product_Parent__c,ProductCode from Product2 where id=:asst.Product2Id];
+                    if(prod.Product_Parent__c=='Device')
+                    {
+                      DeviceUpdationFromAsset.UpdateDeviceBlock(ASSETcreate.ID,asst.IMEI__c);
+                    }
+                }
+      
+                else if(ASSETcreate.IMEI__c!=null && ASSETcreate.Status=='Installed'&& ASSETcreate.API_Success__c==True && ASSETcreate.API_Response__c!=null && ASSETcreate.Cancelled__c==False)
+                {
+
+                   
+                    Asset asst=[select IMEI__c,Product2Id,IMEI_Hold__c from Asset where id=:ASSETcreate.ID];   
+                    Product2 prod=[select Product_Parent__c,ProductCode from Product2 where id=:asst.Product2Id];
+                
+                        string oldimei = asst.IMEI_Hold__c;
+                    if(prod.Product_Parent__c=='Device'&& ASSETcreate.IMEI_Hold__c!=ASSETcreate.IMEI__c)
+                    {
+ 
+                       DeviceUpdationFromAsset.UpdateDeviceReplace(ASSETcreate.ID,ASSETcreate.IMEI_Hold__c);
+
+                    }
+                }
+              
+            }
+        }
+    }
+    catch(Exception e)
+    {
+        System.debug('An unexpected error has occurred: ' + e.getMessage());
+    }
+
+}
+
+
+
+public class DeviceUpdationFromAsset 
+{
+ 
+      
+    @future (callout=true)
+    public static void UpdateDeviceBlock(id DeviceId ,String Imei)
+    {
+         	
+         	string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+            Asset asst=[select Name,Product2Id,API_Success__c,API_Response__c,Cancelled__c,Service_Enablement__c from Asset where id=:DeviceId];
+            SalesOrderServicesServiceEnablement__c service =[select Service_Code__c from SalesOrderServicesServiceEnablement__c where Name=:asst.Service_Enablement__c];
+           
+          
+            
+            HttpRequest req = new HttpRequest();
+        	req.setMethod('PUT');
+        	req.setHeader('Authorization', mctk_API);
+            req.setHeader('Content-Length', '4096');
+            
+            string endpoint='http://avl.com.sa:8799/salesforce/Device/block/'+Imei+'?serviceType='+service.Service_Code__c;
+        	req.setEndpoint(endpoint);
+             
+        	Http http = new Http();
+        	HTTPResponse response = http.send(req); 
+            JSONParser parser = JSON.createParser(response.getBody());
+        	system.debug(response.getBody());
+         	
+            String data;
+         	string verror;  
+           
+         	if (response.getStatus() =='OK')
+         	{
+           	 	while (parser.nextToken() != null) 
+            	{
+                		if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'message')) 
+                		{
+                 			parser.nextToken();
+                 			data = parser.getText();
+                		}
+             	}
+               		asst.API_Success__c=True;
+               		asst.API_Response__c='Device API: '+ data;
+                    asst.Cancelled__c=True;
+                   	update asst; 
+               
+               
+         	}
+         	else
+         	{
+                
+                    string error=String.valueOf(response.getBody()); 
+               		verror= error.substringAfter('"error":');
+               		asst.API_Success__c=false;
+               		 if (verror!=null)
+                     {
+                         asst.API_Response__c='Device API: '+verror;
+                     }
+                    else
+                    { 
+                        asst.API_Response__c='Device API: '+response.getBody();
+                    }
+                    asst.Cancelled__c=False;
+               		update asst; 
+            }
+        
+           ApiLogCreation.creation('Update','Device',DeviceId, 'Block', response.getStatus(),Datetime.now(),verror,Imei); 
+    
+    }
+    
+     @future (callout=true)
+    public static void UpdateDeviceReplace(id DeviceId ,String Imei)
+    {
+        	
+         	string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+            Asset asst=[select Name,AccountId,SerialNumber,IMEI_Hold__c,IMEI__c,UID__c,SIM_Serial__c,Plate_Number__c,Product2Id,API_Success__c,API_Response__c,Cancelled__c,Service_Enablement__c from Asset where id=:DeviceId];
+        
+        	Account acc=[select Account_Number__c from Account where id =:asst.AccountId];
+            Product2 prod=[select name,productcode from product2 where id =:asst.Product2Id];
+            SalesOrderServicesServiceEnablement__c service =[select Service_Code__c from SalesOrderServicesServiceEnablement__c where Name=:asst.Service_Enablement__c];
+          
+            JSONGenerator jsonGen = JSON.createGenerator(true);
+         	jsonGen.writeStartObject();
+         	jsonGen.writeStringField('serviceType',service.Service_Code__c);
+         	jsonGen.writeStringField('accountNo',acc.Account_Number__c);  
+         	jsonGen.writeStringField('sid',asst.SerialNumber);
+         	jsonGen.writeStringField('imei',asst.IMEI__c);
+         	jsonGen.writeStringField('uid',asst.UID__c);
+         	jsonGen.writeStringField('simCode','966');
+            jsonGen.writeStringField('simNumber',asst.SIM_Serial__c);
+            jsonGen.writeStringField('deviceTypeCode',prod.productcode);
+            jsonGen.writeStringField('plateNumber',asst.Plate_Number__c);
+           
+           
+            jsonGen.writeEndObject();
+         	String jsonData = jsonGen.getAsString();
+         	HttpRequest req = new HttpRequest();
+         	req.setMethod('PUT');
+         	req.setHeader('Authorization', mctk_API);
+         	req.setHeader('Content-type', 'application/json');
+         	req.setEndpoint('http://avl.com.sa:8799/salesforce/Device/replace/'+Imei);
+         	req.setBody(jsonData); 
+         	Http http = new Http();
+         	HTTPResponse response = http.send(req);
+         	JSONParser parser = JSON.createParser(response.getBody());
+        
+           
+         	String data;
+         	string verror;
+	        if (response.getStatus() =='OK')
+        	 {
+           	 	while (parser.nextToken() != null) 
+            	{
+                		if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'message')) 
+                		{
+                 			parser.nextToken();
+                 			data = parser.getText();
+                		}
+             	}
+               asst.API_Success__c=True;
+               asst.API_Response__c='Device API: '+data;
+               asst.IMEI_Hold__c=asst.IMEI__c;
+               update asst; 
+               system.debug(response.getBody());
+          
+             }
+          else
+           {
+                   string error=String.valueOf(response.getBody()); 
+               		verror= error.substringAfter('"error":');
+               		//asst.API_Success__c=false;
+                     if (verror!=null)
+                     {
+                         asst.API_Response__c='Device API: '+verror;
+                     }
+                    else
+                    {
+                        asst.API_Response__c='Device API: '+response.getBody();
+                    }
+                    system.debug(response.getBody());
+               		update asst; 
+           }
+         ApiLogCreation.creation('Update','Device',DeviceId, 'Replace', response.getStatus(),Datetime.now(),verror,Imei); 
+          
+        
+    }
+ 
+}
+
+
+
+public class DeviceCreationFromAsset 
+{
+ 
+
+    @future (callout=true)
+   
+    public static void deviceAPICreation(id assetID,string prodCode)
+    {
+       try
+       {
+            string Api_Type;
+         	string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+            Asset asst=[select AccountId,SerialNumber,IMEI__c,IMEI_Hold__c,UID__c,SIM_Serial__c,Plate_Number__c,Service_Enablement__c,Order__c from Asset where id=:assetID];
+            asst.IMEI_Hold__c=asst.IMEI__c;
+            Account acc=[select Account_Number__c from Account where id =:asst.AccountId];
+            SalesOrderServicesServiceEnablement__c service =[select Service_Code__c from SalesOrderServicesServiceEnablement__c where Name=:asst.Service_Enablement__c];
+           
+            JSONGenerator jsonGen = JSON.createGenerator(true);
+         	jsonGen.writeStartObject();
+         	jsonGen.writeStringField('serviceType',service.Service_Code__c);
+         	jsonGen.writeStringField('accountNo',acc.Account_Number__c);  
+         	jsonGen.writeStringField('sid',asst.SerialNumber);
+         	jsonGen.writeStringField('imei',asst.IMEI__c);
+         	jsonGen.writeStringField('uid',asst.UID__c);
+         	jsonGen.writeStringField('simCode','966');
+            jsonGen.writeStringField('simNumber',asst.SIM_Serial__c);
+            jsonGen.writeStringField('deviceTypeCode',prodCode);
+            jsonGen.writeStringField('plateNumber',asst.Plate_Number__c);
+           
+           
+            jsonGen.writeEndObject();
+         	String jsonData = jsonGen.getAsString();
+         	HttpRequest req = new HttpRequest();
+         	req.setMethod('POST');
+         	req.setHeader('Authorization', mctk_API);
+         	req.setHeader('Content-type', 'application/json');
+         	req.setEndpoint('http://avl.com.sa:8799/salesforce/Device');
+         	req.setBody(jsonData); 
+         	Http http = new Http();
+         	HTTPResponse response = http.send(req);
+         	JSONParser parser = JSON.createParser(response.getBody());
+           
+           
+         	String data;
+         	string verror;
+	        if (response.getStatus() =='OK')
+        	 {
+           	 	while (parser.nextToken() != null) 
+            	{
+                		if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'message')) 
+                		{
+                 			parser.nextToken();
+                 			data = parser.getText();
+                		}
+             	}
+               asst.API_Success__c=True;
+               asst.API_Response__c='Device API: '+data;
+               update asst; 
+          
+         
+                  LIST<Asset> attachment_asset= [select ID,Product2Id from Asset where Order__c=:asst.Order__c AND Asset_Type__c =:'Attachment'];
+                  System.enqueueJob(new AttachmentUnitCreationFromAssetDevice(attachment_asset,asst.IMEI__c));
+               
+         	}
+           
+         	else
+            {
+               		string error=String.valueOf(response.getBody()); 
+               		verror= error.substringAfter('"error":');
+               		asst.API_Success__c=false;
+                     if (verror!=null)
+                     {
+                         asst.API_Response__c='Device API: '+verror;
+                     }
+                    else
+                    {
+                        asst.API_Response__c='Device API: '+response.getBody();
+                    }
+                    
+               		update asst; 
+      		}
+           
+           ApiLogCreation.creation('Create','Device', assetID ,asst.IMEI__c, response.getStatus(),Datetime.now(),verror,prodCode); 
+
+       }
+       catch(Exception e)
+       {
+           System.debug('An unexpected error accured :'+e.getMessage());
+       }
+    }
+    
+
+    
+}

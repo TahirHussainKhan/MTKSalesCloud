@@ -1,0 +1,494 @@
+Customer :
+
+create sales order api : complete apexclass + trigger
+update sales order api : complete apexclass + trigger on hold 
+delete sales order api : complete apexclass(input perameter on hold) + trigger on hold 
+Get sales order services api complete 
+
+
+AttachmentUnits :
+post attachment units api : apex class 
+delete attachment units api : apex class 
+
+
+
+Device :
+post device api : apex class 
+
+
+
+
+
+
+APEX CLASS:
+TRIGGERS:
+
+
+Customer :
+
+create sales order api : complete apexclass + trigger
+update sales order api : complete apexclass + trigger on hold 
+delete sales order api : complete apexclass(input perameter on hold) + trigger on hold 
+Get sales order services api complete 
+
+
+AttachmentUnits :
+post attachment units api : apex class 
+delete attachment units api : apex class 
+
+
+
+Device :
+post device api : apex class 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+https://www.youtube.com/watch?v=AFezX6KWaFg&list=PLFNbZmUNjID5Wej5SE0ronnj5m61cJjS2&index=3
+https://salesforce.stackexchange.com/questions/13033/adding-a-custom-object-to-a-change-set
+https://ideas.salesforce.com/s/idea/a0B8W00000GdomrUAB/change-sets-automatically-include-a-custom-objects-custom-fields
+https://www.salesforcetutorial.com/deployments-using-change-sets/
+https://www.forcetalks.com/blog/deploying-custom-field-and-custom-object-through-change-set-salesforce-developer-guide/
+https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_deploying_changesets.htm
+https://developer.salesforce.com/docs/atlas.en-us.188.0.packagingGuide.meta/packagingGuide/packaging_about_packages.htm
+https://www.tutorialkart.com/salesforce/deployment-tools-in-salesforce/#:~:text=Change%20sets%20in%20Salesforce%20are%20groupings%20of%20components,change%20sets%20truly%20unique%20is%20their%20declarative%20nature.
+https://salesforce.stackexchange.com/questions/24446/how-to-deploy-apex-classes-that-are-scheduled
+https://developer.salesforce.com/forums/?id=9060G000000ICVjQAO
+https://salesforce.stackexchange.com/questions/55957/changeset-deployment-do-i-need-to-add-custom-fields-separately
+
+
+
+trigger CreateSalesOrderAPI on Order (after update) 
+{
+     try 
+    {
+        for(Order ordercreate:Trigger.New)
+        {
+            if(System.isFuture()==false)
+            {
+             if(ordercreate.Status=='Activated'&& ordercreate.Order_Include_Smart_Mobility__c==True)
+                {
+            		 CreateSalesOrderAPI.salesOrderCreation(ordercreate.Id,ordercreate.Plan__c);
+                }
+              
+            }
+        }
+        
+    }
+    catch(Exception e)
+    {
+         System.debug('An unexpected error has occurred: ' + e.getMessage());
+    }
+}
+
+
+
+
+public class CreateSalesOrderAPI
+{
+
+ 	@future (callout=true)
+    public static void salesOrderCreation(id orderId, string plancode)
+    {
+       try
+       {
+           
+         string Api_Type;
+         string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+         Order ord=[select AccountId,Account_Name1__c,Authorized_Email__c,Authorized_Phone__c from Order where id=:orderId];
+    	 Account acc=[select Account_ID__c,Name,Account_Name_in_Arabic_as_per_CR__c,Account_Number__c,CR_Number__c from Account where id =:ord.AccountId];
+    
+         JSONGenerator jsonGen = JSON.createGenerator(true);
+         jsonGen.writeStartObject();
+         jsonGen.writeStringField('serviceType','CMS-001');
+         jsonGen.writeStringField('accountNo',acc.Account_Number__c); 
+         jsonGen.writeStringField('name',acc.Name);
+         jsonGen.writeStringField('nameAr',acc.Account_Name_in_Arabic_as_per_CR__c);
+         jsonGen.writeStringField('crNumber',acc.CR_Number__c);
+         jsonGen.writeStringField('mobileNumber',ord.Authorized_Phone__c); 
+         jsonGen.writeStringField('contactPerson','xyz');
+         jsonGen.writeStringField('email',ord.Authorized_Email__c);
+         jsonGen.writeStringField('address','');
+         jsonGen.writeStringField('language','');
+         jsonGen.writeStringField('totalUnit','1');
+         jsonGen.writeStringField('totalFleet','50');
+         jsonGen.writeStringField('notes','');
+         jsonGen.writeStringField('identityNumber','');
+         jsonGen.writeStringField('issueDate','');
+         jsonGen.writeStringField('planCode',plancode);
+        
+        
+         jsonGen.writeEndObject();
+         String jsonData = jsonGen.getAsString();
+         HttpRequest req = new HttpRequest();
+         req.setMethod('POST');
+         req.setHeader('Authorization', mctk_API);
+         req.setHeader('Content-type', 'application/json');
+         req.setEndpoint('http://avl.com.sa:8799/salesforce/Customer/SalesOrder');
+         req.setBody(jsonData); 
+         Http http = new Http();
+         HTTPResponse response = http.send(req);
+         JSONParser parser = JSON.createParser(response.getBody());
+           
+         string pcode;
+         String data;
+         string verror;  
+         
+         if (response.getStatus() =='OK') 
+         {
+             while (parser.nextToken() != null) 
+            {
+                
+                if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'message')) 
+                {
+                 parser.nextToken();
+                 data = parser.getText();
+                }
+             }
+               ord.API_Success__c=True;
+               ord.API_Response__c=data;
+        
+               update ord; 
+         }
+           
+         else
+         {
+              while (parser.nextToken() != null) 
+            {
+                if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'code'))
+                {
+                 parser.nextToken();
+                 pcode = parser.getText();
+                }
+             }
+             
+             
+           
+               string error=String.valueOf(response.getBody());     
+               verror= error.substringAfter('"errors":');
+               ord.API_Success__c=false;
+               ord.API_Response__c=(response.getBody());
+               update ord; 
+         }
+         
+  		  ApiLogCreation.creation('Create','Sales Order', orderId , acc.Name, response.getStatus(),Datetime.now(),verror,'');
+         
+       }
+       catch(Exception e)
+        {
+            System.debug('An unexpected error has occurred: ' + e.getMessage());
+           
+        }
+        
+    }
+}
+
+public class UpdateSalesOrderAPI 
+{
+
+    @future (callout=true)
+    public static void salesorderUpdation(id orderId, string plancode)
+    {
+        try
+        {
+
+         	string Api_Type;
+         	string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+            
+         	   Order ord=[select AccountId,Account_Name1__c,Authorized_Email__c,Authorized_Phone__c from Order where id=:orderId];
+        	 Account acc=[select Account_ID__c,Name,Account_Name_in_Arabic_as_per_CR__c,Account_Number__c,CR_Number__c from Account where id =:ord.AccountId];
+       	
+            
+
+        
+         	JSONGenerator jsonGen = JSON.createGenerator(true);
+         	jsonGen.writeStartObject();
+            jsonGen.writeStringField('serviceType','CMS-001');
+         	jsonGen.writeStringField('accountNo',acc.Account_Number__c);  
+         	jsonGen.writeStringField('name',acc.Name);
+         	jsonGen.writeStringField('nameAr',acc.Account_Name_in_Arabic_as_per_CR__c);
+         	jsonGen.writeStringField('crNumber',acc.CR_Number__c);
+         	jsonGen.writeStringField('mobileNumber',ord.Authorized_Phone__c); 
+         	jsonGen.writeStringField('contactPerson','xyz');
+         	jsonGen.writeStringField('email',ord.Authorized_Email__c);
+         	jsonGen.writeStringField('address','');
+         	jsonGen.writeStringField('language','');
+         	jsonGen.writeStringField('totalUnit','1');
+         	jsonGen.writeStringField('totalFleet','50');
+         	jsonGen.writeStringField('notes','');
+         	jsonGen.writeStringField('identityNumber','');
+         	jsonGen.writeStringField('issueDate','');
+         	jsonGen.writeStringField('planCode',plancode);
+        
+         	jsonGen.writeEndObject();
+         	String jsonData = jsonGen.getAsString();
+         	HttpRequest req = new HttpRequest();
+         	req.setMethod('PUT');
+         	req.setHeader('Authorization', mctk_API);
+         	req.setHeader('Content-type', 'application/json');
+         	req.setEndpoint('http://avl.com.sa:8799/salesforce/Customer/UpdateSalesOrder');
+         	req.setBody(jsonData); 
+         	Http http = new Http();
+         	HTTPResponse response = http.send(req);
+         	JSONParser parser = JSON.createParser(response.getBody());
+            
+            string pcode;
+         	String data;
+         	string verror;
+  
+         
+         if (response.getStatus() =='OK')
+         { while (parser.nextToken() != null) 
+            {
+                
+                if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'message')) 
+                {
+                 parser.nextToken();
+                 data = parser.getText();
+                }
+             }
+               ord.API_Success__c=True;
+               ord.API_Response__c=data;
+          	   system.debug('order updated');
+               update ord; 
+         }
+         else
+         {
+              while (parser.nextToken() != null) 
+            {
+                if ((parser.getCurrentToken() == JSONToken.FIELD_NAME) && (parser.getText() == 'code'))
+                {
+                 parser.nextToken();
+                 pcode = parser.getText();
+                }
+             }
+             
+    
+
+               string error=String.valueOf(response.getBody());     
+               verror= error.substringAfter('"errors":');
+               ord.API_Success__c=false;
+               ord.API_Response__c=(response.getBody());
+               update ord; 
+         }
+         
+  			ApiLogCreation.creation('Update','Sales Order', orderId , acc.Name, response.getStatus(),Datetime.now(),verror,'');
+    }
+    
+    catch(Exception e)
+    {
+        System.debug('An unexpected error has occurred: ' + e.getMessage());
+    }
+        
+    }
+}
+
+
+
+
+
+
+
+service type concatination code  :
+
+ /*   
+        PLans__c plan =[select Plan_Code__c from PLans__c where Name=:ord.Plan__c];
+       
+         
+         list<AggregateResult> orderproducts = new list<AggregateResult>([select Service_Enablement__c from OrderItem where OrderId =:orderId  GROUP BY Service_Enablement__c ]);
+         
+         System.debug(orderproducts);
+           
+        
+         list<string> SEset=new list<string>();
+           for(OrderItem orderitemss :[select Service_Enablement__c from OrderItem where OrderId =:orderId ])
+           {
+                SalesOrderServicesServiceEnablement__c serviceEnablement=[select Service_Code__c from SalesOrderServicesServiceEnablement__c where Name =:orderitemss.Service_Enablement__c];
+               		
+               		if(SEset.contains(serviceEnablement.Service_Code__c) == False)
+               		{
+                        
+                   		SEset.add(serviceEnablement.Service_Code__c);
+               		}
+             
+           }
+           
+          string servicetypeCode= string.join(SEset,',');
+          system.debug(servicetypeCode);
+        */
+		
+
+picklist value and api name access from metadetaapi 
+https://developer.salesforce.com/blogs/developer-relations/2017/01/keeping-picklist-integrations-safe-using-api-names
+
+
+
+
+
+
+
+
+{
+  "serviceType": "CMS-001",
+  "accountNo": "ACC-01417",
+  "sid": "xyz",
+  "imei": "234567890",
+  "uid": "123",
+  "simCode": "966",
+  "simNumber": "123456789",
+  "deviceTypeCode": "9234",
+  "plateNumber": "0 2 1 3 | R R H"
+}
+
+
+
+
+
+public class CreateAttachmentUnitAPI 
+{
+
+    
+ 	@future (callout=true)
+ 
+    public static void attachmentUnitCreation(id assetID,string attCode)
+    {
+       try
+       {
+            string Api_Type;
+         	string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+         	Asset asst=[select AccountId,IMEI__c,Service_Enablement__c from Asset where id=:assetID];
+            Account acc=[select Account_Number__c from Account where id =:asst.AccountId];
+            SalesOrderServicesServiceEnablement__c service =[select Service_Code__c from SalesOrderServicesServiceEnablement__c where Name=:asst.Service_Enablement__c];
+           
+            JSONGenerator jsonGen = JSON.createGenerator(true);
+         	jsonGen.writeStartObject();
+         	jsonGen.writeStringField('serviceType',service.Service_Code__c);
+         	jsonGen.writeStringField('accountNo',acc.Account_Number__c);  
+         	jsonGen.writeStringField('attachmentCode',attCode);
+         	jsonGen.writeStringField('imei',asst.IMEI__c);
+         	jsonGen.writeStringField('port','');
+         	jsonGen.writeStringField('alias',''); 
+           
+            jsonGen.writeEndObject();
+         	String jsonData = jsonGen.getAsString();
+         	HttpRequest req = new HttpRequest();
+         	req.setMethod('POST');
+         	req.setHeader('Authorization', mctk_API);
+         	req.setHeader('Content-type', 'application/json');
+         	req.setEndpoint('http://avl.com.sa:8799/salesforce/AttachmentUnits');
+         	req.setBody(jsonData); 
+         	Http http = new Http();
+         	HTTPResponse response = http.send(req);
+         	JSONParser parser = JSON.createParser(response.getBody());
+           
+            string pcode;
+         	String data;
+         	string verror;  
+         
+         	if (response.getStatus() =='OK')
+         	{
+              	System.debug(response.getBody());
+              	System.debug('created successfully');
+         	}
+         	else
+         	{
+               System.debug('STATUS NOT OK :'+response.getStatus());
+               System.debug(response.getBody());
+         	}
+         
+           
+       }
+       catch(Exception e)
+       {
+             System.debug('An unexpected error has occurred: ' + e.getMessage());
+       }
+    }
+}
+
+
+
+
+
+public class CreateDeviceAPI 
+{
+
+    @future (callout=true)
+   
+    public static void deviceAPICreation(id assetID,string prodCode)
+    {
+       try
+       {
+            string Api_Type;
+         	string mctk_API='60233b98-c324-41c4-925a-2223442e5a81';
+            Asset asst=[select AccountId,SerialNumber,IMEI__c,SIM_Serial__c,Plate_Number__c,Service_Enablement__c from Asset where id=:assetID];
+            Account acc=[select Account_Number__c from Account where id =:asst.AccountId];
+            SalesOrderServicesServiceEnablement__c service =[select Service_Code__c from SalesOrderServicesServiceEnablement__c where Name=:asst.Service_Enablement__c];
+             System.debug(asst);
+             System.debug(acc);
+             System.debug(prodCode);
+             System.debug(service);
+            
+            JSONGenerator jsonGen = JSON.createGenerator(true);
+         	jsonGen.writeStartObject();
+         	jsonGen.writeStringField('serviceType',service.Service_Code__c);
+         	jsonGen.writeStringField('accountNo',acc.Account_Number__c);  
+         	jsonGen.writeStringField('sid','');
+         	jsonGen.writeStringField('imei',asst.IMEI__c);
+         	jsonGen.writeStringField('uid','123');
+         	jsonGen.writeStringField('simCode','966');
+            jsonGen.writeStringField('simNumber',asst.SIM_Serial__c);
+            jsonGen.writeStringField('deviceTypeCode',prodCode);
+            jsonGen.writeStringField('plateNumber',asst.Plate_Number__c);
+           
+           
+            jsonGen.writeEndObject();
+         	String jsonData = jsonGen.getAsString();
+         	HttpRequest req = new HttpRequest();
+         	req.setMethod('POST');
+         	req.setHeader('Authorization', mctk_API);
+         	req.setHeader('Content-type', 'application/json');
+         	req.setEndpoint('http://avl.com.sa:8799/salesforce/Device');
+         	req.setBody(jsonData); 
+         	Http http = new Http();
+         	HTTPResponse response = http.send(req);
+         	JSONParser parser = JSON.createParser(response.getBody());
+           
+           
+            string pcode;
+         	String data;
+         	string verror;  
+         
+         	if (response.getStatus() =='OK')
+         	{
+               System.debug('STATUS OK :'+response.getStatus());
+               System.debug(response.getBody());
+         	}
+         	else
+         	{
+               System.debug('STATUS NOT OK :'+response.getStatus());
+               System.debug(response.getBody());
+         	}
+         
+         //  ApiLogCreation.creation('Create','Device', '' , '', response.getStatus(),Datetime.now(),verror,''); 
+         
+       }
+       catch(Exception e)
+       {
+           System.debug('An unexpected error accured :'+e.getMessage());
+       }
+    }
+}
